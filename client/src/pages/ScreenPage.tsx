@@ -97,19 +97,20 @@ export default function ScreenPage() {
 
       {state.phase === "finished" && state.ranking && (() => {
         const distinctRanks = Array.from(new Set(state.ranking.map((r) => r.rank))).sort((a, b) => a - b);
-        const topRanks = distinctRanks.slice(0, 3);
-        const stagingOrder = [...topRanks].reverse(); // 3位相当→2位相当→1位相当の順
+        const topRanks = distinctRanks.slice(0, 3); // 表示位置: 1位が一番上
+        const revealOrder = [...topRanks].reverse(); // 発表順: 3位相当→2位相当→1位相当
         const rest = state.ranking.filter((r) => !topRanks.includes(r.rank));
         const revealStage = state.rankRevealStage ?? 0; // 管理者操作でサーバーが進める
+        const shownRanks = new Set(revealOrder.slice(0, revealStage));
 
         return (
           <div className="screen-center">
             <h1 className="screen-title">最終ランキング</h1>
             <div className="screen-reveal-list">
-              {stagingOrder.map((rank, i) => {
+              {topRanks.map((rank) => {
                 const entries = state.ranking!.filter((r) => r.rank === rank);
                 const isFirst = rank === 1;
-                const shown = revealStage > i;
+                const shown = shownRanks.has(rank);
                 return (
                   <div
                     key={rank}
@@ -122,7 +123,7 @@ export default function ScreenPage() {
                 );
               })}
             </div>
-            {revealStage >= stagingOrder.length && rest.length > 0 && (
+            {revealStage >= revealOrder.length && rest.length > 0 && (
               <ol className="screen-ranking screen-ranking-rest">
                 {rest.map((r) => (
                   <li key={r.nickname}>
