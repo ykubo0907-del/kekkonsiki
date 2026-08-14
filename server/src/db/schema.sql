@@ -1,0 +1,33 @@
+-- 永続データのみ。ゲスト参加データ(ニックネーム/回答/得点)はここには一切保存しない。
+
+CREATE TABLE IF NOT EXISTS admins (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS quizzes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS questions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  quiz_id INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+  order_index INTEGER NOT NULL,
+  question_text TEXT NOT NULL,
+  choice_a TEXT NOT NULL,
+  choice_b TEXT NOT NULL,
+  choice_c TEXT NOT NULL,
+  choice_d TEXT NOT NULL,
+  correct_choice TEXT NOT NULL CHECK (correct_choice IN ('A','B','C','D')),
+  image_path TEXT,
+  UNIQUE(quiz_id, order_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_quizzes_admin ON quizzes(admin_id);
+CREATE INDEX IF NOT EXISTS idx_questions_quiz ON questions(quiz_id);

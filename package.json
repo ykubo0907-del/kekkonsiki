@@ -1,0 +1,13 @@
+{
+  "name": "wedding-quiz",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "build": "npm --prefix client install && npm --prefix client run build && npm --prefix server install && npm --prefix server run build",
+    "start": "npm --prefix server run start",
+    "create-admin": "npm --prefix server run create-admin --"
+  }
+}
