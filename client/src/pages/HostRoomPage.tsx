@@ -59,6 +59,18 @@ export default function HostRoomPage() {
     }
   }
 
+  async function handleAdvanceRank() {
+    setBusy(true);
+    try {
+      await api.advanceRankReveal(roomCode);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "操作に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleClose() {
     if (!confirm("ルームを閉じますか？参加者のデータは全て破棄されます")) return;
     await api.closeRoom(roomCode);
@@ -127,18 +139,36 @@ export default function HostRoomPage() {
           </div>
         )}
 
-        {state.phase === "finished" && state.ranking && (
-          <div>
-            <h2>最終ランキング</h2>
-            <ol>
-              {state.ranking.map((r) => (
-                <li key={r.nickname}>
-                  {r.rank}位 {r.nickname}（{r.score}点）
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
+        {state.phase === "finished" && state.ranking && (() => {
+          const revealStage = state.rankRevealStage ?? 0;
+          const revealMax = state.rankRevealMax ?? 0;
+          const distinctRanks = Array.from(new Set(state.ranking.map((r) => r.rank))).sort((a, b) => a - b);
+          const topRanks = distinctRanks.slice(0, 3);
+          const stagingOrder = [...topRanks].reverse();
+          const revealedRanks = new Set(stagingOrder.slice(0, revealStage));
+
+          return (
+            <div>
+              <h2>最終ランキング</h2>
+              <p className="muted">
+                会場スクリーンで順位を発表します。「次の順位を発表」を押すたびに、3位→2位→1位の順に表示されます。
+              </p>
+              <ol>
+                {state.ranking.map((r) => (
+                  <li key={r.nickname}>
+                    {topRanks.includes(r.rank) && !revealedRanks.has(r.rank) ? (
+                      <span className="muted">{r.rank}位 (未発表)</span>
+                    ) : (
+                      <>
+                        {r.rank}位 {r.nickname}（{r.score}点）
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          );
+        })()}
 
         <div className="btn-row">
           {(state.phase === "waiting" || state.phase === "reveal") && (
@@ -151,6 +181,16 @@ export default function HostRoomPage() {
           {state.phase === "question" && (
             <button onClick={handleReveal} disabled={busy}>
               正解発表
+            </button>
+          )}
+          {state.phase === "finished" && (
+            <button
+              onClick={handleAdvanceRank}
+              disabled={busy || (state.rankRevealStage ?? 0) >= (state.rankRevealMax ?? 0)}
+            >
+              {(state.rankRevealStage ?? 0) >= (state.rankRevealMax ?? 0)
+                ? "発表完了"
+                : `次の順位を発表 (${state.rankRevealStage ?? 0}/${state.rankRevealMax ?? 0})`}
             </button>
           )}
         </div>

@@ -44,6 +44,7 @@ interface RoomState {
   answers: Map<number, Map<string, Choice>>; // questionIndex -> participantId -> choice
   createdAt: number;
   lastActivityAt: number;
+  rankRevealStage: number; // 最終結果画面で、管理者操作により何段階目まで発表済みか(0=未発表)
 }
 
 export interface RankingEntry {
@@ -94,6 +95,7 @@ class RoomManager {
       answers: new Map(),
       createdAt: Date.now(),
       lastActivityAt: Date.now(),
+      rankRevealStage: 0,
     };
     this.rooms.set(roomCode, room);
     return room;
@@ -167,6 +169,7 @@ class RoomManager {
     const isLastQuestion = room.currentQuestionIndex >= room.questions.length - 1;
     if (room.phase === "reveal" && isLastQuestion) {
       room.phase = "finished";
+      room.rankRevealStage = 0;
     } else {
       room.currentQuestionIndex += 1;
       room.phase = "question";
@@ -232,6 +235,28 @@ class RoomManager {
     return ranking;
   }
 
+  // 最終ランキングのうち、演出対象となる上位の順位値を「発表順」(3位相当→2位相当→1位相当)で返す
+  private rankStagingOrder(ranking: RankingEntry[]): number[] {
+    const distinctRanks = [...new Set(ranking.map((r) => r.rank))].sort((a, b) => a - b);
+    const topRanks = distinctRanks.slice(0, 3);
+    return [...topRanks].reverse();
+  }
+
+  advanceRankReveal(roomCode: string, adminId: number): { error?: string } {
+    const room = this.getRoom(roomCode);
+    if (!room) return { error: "ルームが見つかりません" };
+    if (room.adminId !== adminId) return { error: "このルームを操作する権限がありません" };
+    if (room.phase !== "finished") return { error: "今は順位発表できません" };
+
+    const max = this.rankStagingOrder(this.computeRanking(room)).length;
+    if (room.rankRevealStage >= max) return { error: "すべて発表済みです" };
+
+    room.rankRevealStage += 1;
+    room.lastActivityAt = Date.now();
+    roomEvents.emit("update", room.roomCode);
+    return {};
+  }
+
   getPublicState(roomCode: string, participantId?: string) {
     const room = this.getRoom(roomCode);
     if (!room) return { error: "ルームが見つかりません" as const };
@@ -293,7 +318,9 @@ class RoomManager {
     }
 
     if (room.phase === "finished") {
-      return { ...base, ranking: this.computeRanking(room) };
+      const ranking = this.computeRanking(room);
+      const rankRevealMax = this.rankStagingOrder(ranking).length;
+      return { ...base, ranking, rankRevealStage: room.rankRevealStage, rankRevealMax };
     }
 
     // phase === "question"

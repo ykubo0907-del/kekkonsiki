@@ -256,10 +256,10 @@ button.danger {
   border: 3px solid rgba(255, 255, 255, 0.25);
   border-radius: 16px;
   padding: 28px;
-  font-size: 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
 }
 
 .screen-choice-card.correct {
@@ -267,9 +267,16 @@ button.danger {
   border-color: #6fae7c;
 }
 
+.screen-choice-label {
+  font-size: 2.8rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
 .screen-choice-count {
   font-weight: bold;
-  font-size: 2.2rem;
+  font-size: 2.4rem;
+  white-space: nowrap;
 }
 
 .screen-answered-count,
@@ -318,7 +325,7 @@ button.danger {
 }
 
 .rank-reveal-item.rank1.shown {
-  animation: rank1pop 0.7s ease;
+  animation: rank1pop 0.7s ease forwards;
 }
 
 @keyframes rank1pop {

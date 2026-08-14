@@ -71,5 +71,7 @@ export interface RoomState {
   myChoice?: Choice | null;
   correctCount?: number;
   ranking?: RankingEntry[];
+  rankRevealStage?: number;
+  rankRevealMax?: number;
   participantError?: string;
 }

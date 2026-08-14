@@ -172,18 +172,35 @@ export default function JoinPage() {
         </div>
       )}
 
-      {state.phase === "finished" && state.ranking && (
+      {state.phase === "finished" && state.ranking && (() => {
+        const revealStage = state.rankRevealStage ?? 0;
+        const distinctRanks = Array.from(new Set(state.ranking.map((r) => r.rank))).sort((a, b) => a - b);
+        const topRanks = distinctRanks.slice(0, 3);
+        const stagingOrder = [...topRanks].reverse();
+        const revealedRanks = new Set(stagingOrder.slice(0, revealStage));
+
+        return (
         <div className="card">
           <h2>最終ランキング</h2>
+          {revealStage < stagingOrder.length && (
+            <p className="muted">会場スクリーンで上位の発表中です。しばらくお待ちください</p>
+          )}
           <ol>
             {state.ranking.map((r) => (
               <li key={r.nickname} style={{ fontWeight: r.nickname === myNickname ? "bold" : "normal" }}>
-                {r.rank}位 {r.nickname}（{r.score}点）
+                {topRanks.includes(r.rank) && !revealedRanks.has(r.rank) ? (
+                  <span className="muted">{r.rank}位 (発表待ち)</span>
+                ) : (
+                  <>
+                    {r.rank}位 {r.nickname}（{r.score}点）
+                  </>
+                )}
               </li>
             ))}
           </ol>
         </div>
-      )}
+        );
+      })()}
 
       {stateError && <p className="error-text">{stateError}</p>}
     </div>

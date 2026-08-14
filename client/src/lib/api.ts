@@ -71,5 +71,6 @@ export const api = {
     }),
   nextQuestion: (code: string) => request<void>(`/rooms/${code}/next`, { method: "POST" }),
   revealAnswer: (code: string) => request<void>(`/rooms/${code}/reveal`, { method: "POST" }),
+  advanceRankReveal: (code: string) => request<void>(`/rooms/${code}/reveal-rank`, { method: "POST" }),
   closeRoom: (code: string) => request<void>(`/rooms/${code}`, { method: "DELETE" }),
 };

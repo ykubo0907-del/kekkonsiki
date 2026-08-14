@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import ConnectionBanner from "../components/ConnectionBanner";
 import QRCodeImage from "../components/QRCodeImage";
 import { api, ApiError } from "../lib/api";
-import type { Choice, Phase, RoomState } from "../lib/types";
+import type { Choice, RoomState } from "../lib/types";
 import { useRoomSocket } from "../lib/useRoomSocket";
 
 const FALLBACK_POLL_INTERVAL_MS = 8000;
-const REVEAL_STEP_MS = 2500;
 
 export default function ScreenPage() {
   const { code } = useParams<{ code: string }>();
@@ -33,23 +32,6 @@ export default function ScreenPage() {
   }, [refresh]);
 
   const { connected } = useRoomSocket(roomCode, refresh);
-
-  // 最終結果は3位→2位→1位の順に段階的に表示する。
-  // phaseが"finished"になった瞬間だけ演出を開始し、以後のポーリング/socket更新で
-  // 演出がリスタートしないよう直前のphaseを覚えておく。
-  const prevPhaseRef = useRef<Phase | null>(null);
-  const [revealStage, setRevealStage] = useState(0);
-
-  useEffect(() => {
-    if (!state) return;
-    if (state.phase === "finished" && prevPhaseRef.current !== "finished") {
-      setRevealStage(0);
-      const timers = [1, 2, 3].map((stage) => window.setTimeout(() => setRevealStage(stage), stage * REVEAL_STEP_MS));
-      prevPhaseRef.current = state.phase;
-      return () => timers.forEach((t) => window.clearTimeout(t));
-    }
-    prevPhaseRef.current = state.phase;
-  }, [state?.phase]);
 
   const joinUrl = `${window.location.origin}/play/${roomCode}`;
 
@@ -118,6 +100,7 @@ export default function ScreenPage() {
         const topRanks = distinctRanks.slice(0, 3);
         const stagingOrder = [...topRanks].reverse(); // 3位相当→2位相当→1位相当の順
         const rest = state.ranking.filter((r) => !topRanks.includes(r.rank));
+        const revealStage = state.rankRevealStage ?? 0; // 管理者操作でサーバーが進める
 
         return (
           <div className="screen-center">

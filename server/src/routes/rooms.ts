@@ -88,6 +88,13 @@ roomsRouter.post("/:code/reveal", requireAdmin, (req, res) => {
   res.status(204).end();
 });
 
+// 最終ランキングを1段階ずつ発表(管理者のみ、3位相当→2位相当→1位相当の順)
+roomsRouter.post("/:code/reveal-rank", requireAdmin, (req, res) => {
+  const result = roomManager.advanceRankReveal(req.params.code, req.admin!.adminId);
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.status(204).end();
+});
+
 roomsRouter.delete("/:code", requireAdmin, (req, res) => {
   const result = roomManager.closeRoom(req.params.code, req.admin!.adminId);
   if (result.error) return res.status(400).json({ error: result.error });
