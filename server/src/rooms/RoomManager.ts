@@ -18,6 +18,7 @@ export type Phase = "waiting" | "question" | "reveal" | "finished";
 
 export interface QuestionSnapshot {
   order_index: number;
+  question_type: QuestionType;
   question_text: string;
   image_path: string | null;
   // question_type === "choice" のときのみ使う
@@ -41,8 +42,7 @@ interface RoomState {
   adminId: number;
   quizId: number;
   title: string;
-  questionType: QuestionType;
-  questions: QuestionSnapshot[];
+  questions: QuestionSnapshot[]; // 問題ごとにquestion_typeを持ち、4択と自由記述を混在できる
   phase: Phase;
   currentQuestionIndex: number; // -1 = 未開始
   participants: Map<string, Participant>;
@@ -50,7 +50,7 @@ interface RoomState {
   createdAt: number;
   lastActivityAt: number;
   rankRevealStage: number; // 最終結果画面で、管理者操作により何段階目まで発表済みか(0=未発表)
-  correctRevealed: boolean; // 自由記述のreveal中、正解とハイライトをまだ出していないか(4択では常にtrue)
+  correctRevealed: boolean; // 自由記述問題のreveal中、正解とハイライトをまだ出していないか(4択では常にtrue)
 }
 
 export interface RankingEntry {
@@ -64,7 +64,7 @@ const generateRoomCode = customAlphabet(ROOM_CODE_ALPHABET, 6);
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12時間、安全網としての自動破棄
 
 // 表記ゆれ(カタカナ/ひらがな、空白、大文字小文字)を吸収してから比較するための正規化。
-// 自由記述クイズでのみ使う。「らーめん」と「ラーメン」を同じ扱いにする。
+// 自由記述の問題でのみ使う。「らーめん」と「ラーメン」を同じ扱いにする。
 export function normalizeAnswer(text: string): string {
   return text
     .trim()
@@ -93,7 +93,6 @@ class RoomManager {
     adminId: number;
     quizId: number;
     title: string;
-    questionType: QuestionType;
     questions: QuestionSnapshot[];
   }): RoomState {
     let roomCode = generateRoomCode();
@@ -105,7 +104,6 @@ class RoomManager {
       adminId: params.adminId,
       quizId: params.quizId,
       title: params.title,
-      questionType: params.questionType,
       questions: params.questions,
       phase: "waiting",
       currentQuestionIndex: -1,
@@ -158,8 +156,9 @@ class RoomManager {
     if (!room.participants.has(participantId)) return { error: "参加情報が見つかりません" };
     if (room.phase !== "question") return { error: "現在回答を受け付けていません" };
 
+    const question = room.questions[room.currentQuestionIndex];
     let value: string;
-    if (room.questionType === "choice") {
+    if (question.question_type === "choice") {
       if (!["A", "B", "C", "D"].includes(answerText)) return { error: "選択肢が不正です" };
       value = answerText;
     } else {
@@ -212,7 +211,7 @@ class RoomManager {
 
     room.phase = "reveal";
     // 4択は正解を即時公開、自由記述は「みんなの回答表示」→「正解発表」の2段階にする
-    room.correctRevealed = room.questionType === "choice";
+    room.correctRevealed = room.questions[room.currentQuestionIndex].question_type === "choice";
     room.lastActivityAt = Date.now();
     roomEvents.emit("update", room.roomCode);
     return {};
@@ -222,7 +221,9 @@ class RoomManager {
     const room = this.getRoom(roomCode);
     if (!room) return { error: "ルームが見つかりません" };
     if (room.adminId !== adminId) return { error: "このルームを操作する権限がありません" };
-    if (room.questionType !== "freetext") return { error: "このクイズ形式では不要な操作です" };
+    if (room.questions[room.currentQuestionIndex]?.question_type !== "freetext") {
+      return { error: "この問題では不要な操作です" };
+    }
     if (room.phase !== "reveal") return { error: "今は正解を発表できません" };
     if (room.correctRevealed) return { error: "既に正解を発表済みです" };
 
@@ -236,7 +237,7 @@ class RoomManager {
     const answer = room.answers.get(qIndex)?.get(participantId);
     if (!answer) return false;
     const question = room.questions[qIndex];
-    if (room.questionType === "choice") {
+    if (question.question_type === "choice") {
       return answer === question.correct_choice;
     }
     return normalizeAnswer(answer) === normalizeAnswer(question.correct_answer_text ?? "");
@@ -253,6 +254,7 @@ class RoomManager {
     return counts;
   }
 
+  // 4択・自由記述が混在していても、問題ごとに正誤判定して合計するのでそのまま合算ランキングになる
   computeRanking(room: RoomState): RankingEntry[] {
     const scores = new Map<string, number>();
     for (const participant of room.participants.values()) {
@@ -315,7 +317,6 @@ class RoomManager {
     const base = {
       roomCode: room.roomCode,
       title: room.title,
-      questionType: room.questionType,
       phase: room.phase,
       participantCount: room.participants.size,
       totalQuestions: room.questions.length,
@@ -341,8 +342,9 @@ class RoomManager {
     const answeredCount = answersForQuestion?.size ?? 0;
 
     const questionPublic =
-      room.questionType === "choice"
+      question.question_type === "choice"
         ? {
+            question_type: question.question_type,
             question_text: question.question_text,
             choice_a: question.choice_a,
             choice_b: question.choice_b,
@@ -351,12 +353,13 @@ class RoomManager {
             image_path: question.image_path,
           }
         : {
+            question_type: question.question_type,
             question_text: question.question_text,
             image_path: question.image_path,
           };
 
     if (room.phase === "reveal") {
-      if (room.questionType === "choice") {
+      if (question.question_type === "choice") {
         const answerCounts = this.computeAnswerCounts(room, qIndex);
         return {
           ...base,
@@ -397,7 +400,7 @@ class RoomManager {
     }
 
     // phase === "question"
-    const answerCounts = room.questionType === "choice" ? this.computeAnswerCounts(room, qIndex) : undefined;
+    const answerCounts = question.question_type === "choice" ? this.computeAnswerCounts(room, qIndex) : undefined;
     return {
       ...base,
       question: questionPublic,

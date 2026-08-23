@@ -34,7 +34,7 @@ export default function ScreenPage() {
   const { connected } = useRoomSocket(roomCode, refresh);
 
   const joinUrl = `${window.location.origin}/play/${roomCode}`;
-  const isChoice = state?.questionType === "choice";
+  const isChoice = state?.question?.question_type === "choice";
 
   if (error && !state) {
     return (

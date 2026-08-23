@@ -11,17 +11,17 @@ CREATE TABLE IF NOT EXISTS quizzes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
-  question_type TEXT NOT NULL DEFAULT 'choice' CHECK (question_type IN ('choice', 'freetext')),
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- question_typeが'choice'の問題はchoice_a〜d/correct_choiceを使い、
--- 'freetext'の問題はcorrect_answer_textを使う(クイズ単位で型が決まるため、1つの問題で両方使うことはない)。
+-- question_typeは問題ごとに決まる(1つのクイズの中で4択と自由記述を混在できる)。
+-- 'choice'の問題はchoice_a〜d/correct_choiceを使い、'freetext'の問題はcorrect_answer_textを使う。
 CREATE TABLE IF NOT EXISTS questions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   quiz_id INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
   order_index INTEGER NOT NULL,
+  question_type TEXT NOT NULL DEFAULT 'choice' CHECK (question_type IN ('choice', 'freetext')),
   question_text TEXT NOT NULL,
   choice_a TEXT,
   choice_b TEXT,

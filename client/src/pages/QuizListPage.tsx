@@ -2,14 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
-import type { QuestionType, QuizSummary } from "../lib/types";
+import type { QuizSummary } from "../lib/types";
 
 export default function QuizListPage() {
   const { username, logout } = useAuth();
   const navigate = useNavigate();
   const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
   const [newTitle, setNewTitle] = useState("");
-  const [newType, setNewType] = useState<QuestionType>("choice");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -26,7 +25,7 @@ export default function QuizListPage() {
     setBusy(true);
     setError(null);
     try {
-      const { id } = await api.createQuiz(newTitle.trim(), newType);
+      const { id } = await api.createQuiz(newTitle.trim());
       setNewTitle("");
       navigate(`/admin/quizzes/${id}`);
     } catch (err) {
@@ -84,28 +83,10 @@ export default function QuizListPage() {
             placeholder="例: 新郎新婦クイズ"
           />
         </div>
-        <div className="field">
-          <label>回答形式</label>
-          <div className="btn-row">
-            <button
-              type="button"
-              className={newType === "choice" ? "" : "secondary"}
-              onClick={() => setNewType("choice")}
-            >
-              4択
-            </button>
-            <button
-              type="button"
-              className={newType === "freetext" ? "" : "secondary"}
-              onClick={() => setNewType("freetext")}
-            >
-              自由記述
-            </button>
-          </div>
-        </div>
         <button onClick={handleCreate} disabled={busy || !newTitle.trim()}>
           新規作成
         </button>
+        <p className="muted">回答形式(4択/自由記述)は問題ごとに編集画面で選べます</p>
       </div>
 
       {error && <p className="error-text">{error}</p>}
@@ -115,9 +96,7 @@ export default function QuizListPage() {
         {quizzes.map((q) => (
           <div className="list-item" key={q.id}>
             <div>
-              <div>
-                {q.title} <span className="muted">({q.question_type === "choice" ? "4択" : "自由記述"})</span>
-              </div>
+              <div>{q.title}</div>
               <div className="muted">問題数: {q.question_count} / 10</div>
             </div>
             <div className="btn-row">

@@ -12,13 +12,10 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 export const quizzesRouter = Router();
 quizzesRouter.use(requireAdmin);
 
-type QuestionType = "choice" | "freetext";
-
 interface QuizRow {
   id: number;
   admin_id: number;
   title: string;
-  question_type: QuestionType;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +24,7 @@ interface QuestionRow {
   id: number;
   quiz_id: number;
   order_index: number;
+  question_type: "choice" | "freetext";
   question_text: string;
   choice_a: string | null;
   choice_b: string | null;
@@ -47,7 +45,7 @@ function loadOwnedQuiz(quizId: number, adminId: number): QuizRow | undefined {
 quizzesRouter.get("/", (req, res) => {
   const rows = db
     .prepare(
-      `SELECT q.id, q.title, q.question_type, q.updated_at,
+      `SELECT q.id, q.title, q.updated_at,
               (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id) AS question_count
        FROM quizzes q WHERE q.admin_id = ? ORDER BY q.updated_at DESC`,
     )
@@ -55,20 +53,17 @@ quizzesRouter.get("/", (req, res) => {
   res.json(rows);
 });
 
-// 新規作成(タイトル+回答形式のみ。問題は後から編集)
-const createQuizSchema = z.object({
-  title: z.string().min(1).max(200),
-  question_type: z.enum(["choice", "freetext"]),
-});
+// 新規作成(タイトルのみ。問題は後から編集)
+const createQuizSchema = z.object({ title: z.string().min(1).max(200) });
 
 quizzesRouter.post("/", (req, res) => {
   const parsed = createQuizSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "タイトルと回答形式を指定してください" });
+    return res.status(400).json({ error: "タイトルを入力してください" });
   }
   const info = db
-    .prepare("INSERT INTO quizzes (admin_id, title, question_type) VALUES (?, ?, ?)")
-    .run(req.admin!.adminId, parsed.data.title, parsed.data.question_type);
+    .prepare("INSERT INTO quizzes (admin_id, title) VALUES (?, ?)")
+    .run(req.admin!.adminId, parsed.data.title);
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
@@ -84,18 +79,19 @@ quizzesRouter.get("/:id", (req, res) => {
   res.json({ ...quiz, questions });
 });
 
-// タイトル・回答形式の更新
+// タイトル更新
 quizzesRouter.put("/:id", (req, res) => {
   const parsed = createQuizSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "タイトルと回答形式を指定してください" });
+    return res.status(400).json({ error: "タイトルを入力してください" });
   }
   const quiz = loadOwnedQuiz(Number(req.params.id), req.admin!.adminId);
   if (!quiz) return res.status(404).json({ error: "クイズが見つかりません" });
 
-  db.prepare(
-    "UPDATE quizzes SET title = ?, question_type = ?, updated_at = datetime('now') WHERE id = ?",
-  ).run(parsed.data.title, parsed.data.question_type, quiz.id);
+  db.prepare("UPDATE quizzes SET title = ?, updated_at = datetime('now') WHERE id = ?").run(
+    parsed.data.title,
+    quiz.id,
+  );
   res.status(204).end();
 });
 
@@ -119,18 +115,19 @@ quizzesRouter.post("/:id/duplicate", (req, res) => {
 
   const newQuizId = runInTransaction(() => {
     const info = db
-      .prepare("INSERT INTO quizzes (admin_id, title, question_type) VALUES (?, ?, ?)")
-      .run(quiz.admin_id, `${quiz.title}のコピー`, quiz.question_type);
+      .prepare("INSERT INTO quizzes (admin_id, title) VALUES (?, ?)")
+      .run(quiz.admin_id, `${quiz.title}のコピー`);
     const newId = info.lastInsertRowid as number;
     const insertQuestion = db.prepare(
       `INSERT INTO questions
-        (quiz_id, order_index, question_text, choice_a, choice_b, choice_c, choice_d, correct_choice, correct_answer_text, image_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (quiz_id, order_index, question_type, question_text, choice_a, choice_b, choice_c, choice_d, correct_choice, correct_answer_text, image_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const q of questions) {
       insertQuestion.run(
         newId,
         q.order_index,
+        q.question_type,
         q.question_text,
         q.choice_a,
         q.choice_b,
@@ -148,28 +145,31 @@ quizzesRouter.post("/:id/duplicate", (req, res) => {
 });
 
 // 問題の一括保存(常に0〜9のorder_indexで全件置き換え)。
-// クイズのquestion_typeに応じて、必須項目(4択 or 正解テキスト)が変わる。
-const baseQuestionSchema = z.object({
+// 問題ごとにquestion_typeを持ち、4択と自由記述を混在できる。
+const choiceQuestionSchema = z.object({
   order_index: z.number().int().min(0).max(9),
+  question_type: z.literal("choice"),
   question_text: z.string().min(1),
-});
-const choiceQuestionSchema = baseQuestionSchema.extend({
   choice_a: z.string().min(1),
   choice_b: z.string().min(1),
   choice_c: z.string().min(1),
   choice_d: z.string().min(1),
   correct_choice: z.enum(["A", "B", "C", "D"]),
 });
-const freetextQuestionSchema = baseQuestionSchema.extend({
+const freetextQuestionSchema = z.object({
+  order_index: z.number().int().min(0).max(9),
+  question_type: z.literal("freetext"),
+  question_text: z.string().min(1),
   correct_answer_text: z.string().min(1),
 });
+const questionSchema = z.discriminatedUnion("question_type", [choiceQuestionSchema, freetextQuestionSchema]);
+const questionsPayloadSchema = z.object({ questions: z.array(questionSchema).max(10) });
 
 quizzesRouter.put("/:id/questions", (req, res) => {
   const quiz = loadOwnedQuiz(Number(req.params.id), req.admin!.adminId);
   if (!quiz) return res.status(404).json({ error: "クイズが見つかりません" });
 
-  const questionSchema = quiz.question_type === "choice" ? choiceQuestionSchema : freetextQuestionSchema;
-  const parsed = z.object({ questions: z.array(questionSchema).max(10) }).safeParse(req.body);
+  const parsed = questionsPayloadSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "問題データが不正です", details: parsed.error.flatten() });
   }
@@ -189,23 +189,22 @@ quizzesRouter.put("/:id/questions", (req, res) => {
     db.prepare("DELETE FROM questions WHERE quiz_id = ?").run(quiz.id);
     const insert = db.prepare(
       `INSERT INTO questions
-        (quiz_id, order_index, question_text, choice_a, choice_b, choice_c, choice_d, correct_choice, correct_answer_text, image_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (quiz_id, order_index, question_type, question_text, choice_a, choice_b, choice_c, choice_d, correct_choice, correct_answer_text, image_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const q of parsed.data.questions) {
-      const isChoice = quiz.question_type === "choice";
-      const choiceQ = isChoice ? (q as z.infer<typeof choiceQuestionSchema>) : null;
-      const freetextQ = !isChoice ? (q as z.infer<typeof freetextQuestionSchema>) : null;
+      const isChoice = q.question_type === "choice";
       insert.run(
         quiz.id,
         q.order_index,
+        q.question_type,
         q.question_text,
-        choiceQ?.choice_a ?? null,
-        choiceQ?.choice_b ?? null,
-        choiceQ?.choice_c ?? null,
-        choiceQ?.choice_d ?? null,
-        choiceQ?.correct_choice ?? null,
-        freetextQ?.correct_answer_text ?? null,
+        isChoice ? q.choice_a : null,
+        isChoice ? q.choice_b : null,
+        isChoice ? q.choice_c : null,
+        isChoice ? q.choice_d : null,
+        isChoice ? q.correct_choice : null,
+        isChoice ? null : q.correct_answer_text,
         existingImages.get(q.order_index) ?? null,
       );
     }

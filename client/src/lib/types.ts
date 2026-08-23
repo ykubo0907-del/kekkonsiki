@@ -4,7 +4,6 @@ export type QuestionType = "choice" | "freetext";
 export interface QuizSummary {
   id: number;
   title: string;
-  question_type: QuestionType;
   updated_at: string;
   question_count: number;
 }
@@ -13,6 +12,7 @@ export interface QuestionRow {
   id: number;
   quiz_id: number;
   order_index: number;
+  question_type: QuestionType;
   question_text: string;
   choice_a: string | null;
   choice_b: string | null;
@@ -27,7 +27,6 @@ export interface QuizDetail {
   id: number;
   admin_id: number;
   title: string;
-  question_type: QuestionType;
   created_at: string;
   updated_at: string;
   questions: QuestionRow[];
@@ -35,6 +34,7 @@ export interface QuizDetail {
 
 export interface QuestionInput {
   order_index: number;
+  question_type: QuestionType;
   question_text: string;
   choice_a?: string;
   choice_b?: string;
@@ -47,6 +47,7 @@ export interface QuestionInput {
 export type Phase = "waiting" | "question" | "reveal" | "finished";
 
 export interface RoomQuestionPublic {
+  question_type: QuestionType;
   question_text: string;
   image_path: string | null;
   choice_a?: string;
@@ -71,7 +72,6 @@ export interface AnswerEntry {
 export interface RoomState {
   roomCode: string;
   title: string;
-  questionType: QuestionType;
   phase: Phase;
   participantCount: number;
   totalQuestions: number;

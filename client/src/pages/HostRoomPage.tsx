@@ -135,7 +135,7 @@ export default function HostRoomPage() {
           <div>
             <p>{state.question.question_text}</p>
             <p className="muted">回答済み: {state.answeredCount ?? 0}人</p>
-            {state.questionType === "choice" ? (
+            {state.question.question_type === "choice" ? (
               <>
                 {state.answerCounts && (
                   <ul>
@@ -211,17 +211,17 @@ export default function HostRoomPage() {
               次の問題へ
             </button>
           )}
-          {state.phase === "reveal" && (state.questionType === "choice" || state.correctRevealed) && (
+          {state.phase === "reveal" && (state.question?.question_type === "choice" || state.correctRevealed) && (
             <button onClick={handleNext} disabled={busy}>
               {state.questionNumber >= state.totalQuestions ? "結果を見る" : "次の問題へ"}
             </button>
           )}
           {state.phase === "question" && (
             <button onClick={handleReveal} disabled={busy}>
-              {state.questionType === "choice" ? "正解発表" : "みんなの回答を表示"}
+              {state.question?.question_type === "choice" ? "正解発表" : "みんなの回答を表示"}
             </button>
           )}
-          {state.phase === "reveal" && state.questionType === "freetext" && !state.correctRevealed && (
+          {state.phase === "reveal" && state.question?.question_type === "freetext" && !state.correctRevealed && (
             <button onClick={handleRevealCorrect} disabled={busy}>
               正解を発表
             </button>

@@ -128,7 +128,7 @@ export default function JoinPage() {
   }
 
   const myNickname = localStorage.getItem(storageKey(roomCode, "nickname"));
-  const isChoice = state.questionType === "choice";
+  const isChoice = state.question?.question_type === "choice";
 
   return (
     <div className="page">

@@ -10,7 +10,6 @@ interface QuizRow {
   id: number;
   admin_id: number;
   title: string;
-  question_type: "choice" | "freetext";
 }
 
 // クイズを開催してルームを作成(管理者のみ)
@@ -36,7 +35,6 @@ roomsRouter.post("/", requireAdmin, (req, res) => {
     adminId: req.admin!.adminId,
     quizId: quiz.id,
     title: quiz.title,
-    questionType: quiz.question_type,
     questions,
   });
   res.status(201).json({ roomCode: room.roomCode });

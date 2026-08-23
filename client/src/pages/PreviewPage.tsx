@@ -52,9 +52,9 @@ export default function PreviewPage() {
     );
   }
 
-  const isChoice = quiz.question_type === "choice";
   const questions = [...quiz.questions].sort((a, b) => a.order_index - b.order_index);
   const question: QuestionRow | undefined = questions[index];
+  const isChoice = question?.question_type === "choice";
   const joinUrl = `${window.location.origin}/play/PREVIEW`;
   const isMatch = question
     ? normalizeAnswer(simulatedAnswer) === normalizeAnswer(question.correct_answer_text ?? "")

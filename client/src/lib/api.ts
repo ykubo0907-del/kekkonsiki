@@ -1,4 +1,4 @@
-import type { QuestionInput, QuestionType, QuizDetail, QuizSummary, RoomState } from "./types";
+import type { QuestionInput, QuizDetail, QuizSummary, RoomState } from "./types";
 
 export class ApiError extends Error {
   status: number;
@@ -38,11 +38,11 @@ export const api = {
   me: () => request<{ username: string }>("/auth/me"),
 
   listQuizzes: () => request<QuizSummary[]>("/quizzes"),
-  createQuiz: (title: string, question_type: QuestionType) =>
-    request<{ id: number }>("/quizzes", { method: "POST", body: JSON.stringify({ title, question_type }) }),
+  createQuiz: (title: string) =>
+    request<{ id: number }>("/quizzes", { method: "POST", body: JSON.stringify({ title }) }),
   getQuiz: (id: number) => request<QuizDetail>(`/quizzes/${id}`),
-  updateQuiz: (id: number, title: string, question_type: QuestionType) =>
-    request<void>(`/quizzes/${id}`, { method: "PUT", body: JSON.stringify({ title, question_type }) }),
+  updateQuizTitle: (id: number, title: string) =>
+    request<void>(`/quizzes/${id}`, { method: "PUT", body: JSON.stringify({ title }) }),
   deleteQuiz: (id: number) => request<void>(`/quizzes/${id}`, { method: "DELETE" }),
   duplicateQuiz: (id: number) => request<{ id: number }>(`/quizzes/${id}/duplicate`, { method: "POST" }),
   saveQuestions: (id: number, questions: QuestionInput[]) =>

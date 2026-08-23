@@ -8,6 +8,7 @@ function emptyQuestion(orderIndex: number, type: QuestionType): QuestionInput {
   if (type === "choice") {
     return {
       order_index: orderIndex,
+      question_type: "choice",
       question_text: "",
       choice_a: "",
       choice_b: "",
@@ -18,6 +19,7 @@ function emptyQuestion(orderIndex: number, type: QuestionType): QuestionInput {
   }
   return {
     order_index: orderIndex,
+    question_type: "freetext",
     question_text: "",
     correct_answer_text: "",
   };
@@ -29,7 +31,6 @@ export default function QuizEditPage() {
   const navigate = useNavigate();
 
   const [title, setTitle] = useState("");
-  const [questionType, setQuestionType] = useState<QuestionType>("choice");
   const [questions, setQuestions] = useState<QuestionInput[]>(
     Array.from({ length: 10 }, (_, i) => emptyQuestion(i, "choice")),
   );
@@ -45,12 +46,12 @@ export default function QuizEditPage() {
   const loadQuiz = useCallback(async () => {
     const quiz = await api.getQuiz(quizId);
     setTitle(quiz.title);
-    setQuestionType(quiz.question_type);
     const loaded: QuestionInput[] = Array.from({ length: 10 }, (_, i) => {
       const found = quiz.questions.find((q) => q.order_index === i);
-      if (!found) return emptyQuestion(i, quiz.question_type);
+      if (!found) return emptyQuestion(i, "choice");
       return {
         order_index: found.order_index,
+        question_type: found.question_type,
         question_text: found.question_text,
         choice_a: found.choice_a ?? undefined,
         choice_b: found.choice_b ?? undefined,
@@ -75,28 +76,27 @@ export default function QuizEditPage() {
     setQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, ...patch } : q)));
   }
 
-  function handleTypeChange(type: QuestionType) {
-    setQuestionType(type);
-    setQuestions((prev) => prev.map((q) => ({ ...emptyQuestion(q.order_index, type), question_text: q.question_text })));
+  function handleQuestionTypeChange(index: number, type: QuestionType) {
+    setQuestions((prev) =>
+      prev.map((q, i) => (i === index ? { ...emptyQuestion(q.order_index, type), question_text: q.question_text } : q)),
+    );
   }
 
-  const allFilled =
-    questionType === "choice"
-      ? questions.every(
-          (q) =>
-            q.question_text.trim() &&
-            q.choice_a?.trim() &&
-            q.choice_b?.trim() &&
-            q.choice_c?.trim() &&
-            q.choice_d?.trim(),
-        )
-      : questions.every((q) => q.question_text.trim() && q.correct_answer_text?.trim());
+  const allFilled = questions.every((q) =>
+    q.question_type === "choice"
+      ? q.question_text.trim() &&
+        q.choice_a?.trim() &&
+        q.choice_b?.trim() &&
+        q.choice_c?.trim() &&
+        q.choice_d?.trim()
+      : q.question_text.trim() && q.correct_answer_text?.trim(),
+  );
 
-  async function handleSaveMeta() {
+  async function handleSaveTitle() {
     setError(null);
     try {
-      await api.updateQuiz(quizId, title, questionType);
-      setMessage("クイズ設定を保存しました");
+      await api.updateQuizTitle(quizId, title);
+      setMessage("タイトルを保存しました");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "保存に失敗しました");
     }
@@ -162,27 +162,7 @@ export default function QuizEditPage() {
           <label htmlFor="title">クイズタイトル</label>
           <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
-        <div className="field">
-          <label>回答形式</label>
-          <div className="btn-row">
-            <button
-              type="button"
-              className={questionType === "choice" ? "" : "secondary"}
-              onClick={() => handleTypeChange("choice")}
-            >
-              4択
-            </button>
-            <button
-              type="button"
-              className={questionType === "freetext" ? "" : "secondary"}
-              onClick={() => handleTypeChange("freetext")}
-            >
-              自由記述
-            </button>
-          </div>
-          <p className="muted">回答形式を切り替えると、下の問題入力欄がリセットされます(問題文は引き継がれます)</p>
-        </div>
-        <button onClick={handleSaveMeta}>クイズ設定を保存</button>
+        <button onClick={handleSaveTitle}>タイトルを保存</button>
       </div>
 
       {error && <p className="error-text">{error}</p>}
@@ -192,6 +172,25 @@ export default function QuizEditPage() {
         <div className="card" key={i}>
           <strong>第{i + 1}問</strong>
           <div className="field">
+            <label>回答形式</label>
+            <div className="btn-row">
+              <button
+                type="button"
+                className={q.question_type === "choice" ? "" : "secondary"}
+                onClick={() => handleQuestionTypeChange(i, "choice")}
+              >
+                4択
+              </button>
+              <button
+                type="button"
+                className={q.question_type === "freetext" ? "" : "secondary"}
+                onClick={() => handleQuestionTypeChange(i, "freetext")}
+              >
+                自由記述
+              </button>
+            </div>
+          </div>
+          <div className="field">
             <label>問題文</label>
             <input
               type="text"
@@ -200,7 +199,7 @@ export default function QuizEditPage() {
             />
           </div>
 
-          {questionType === "choice" ? (
+          {q.question_type === "choice" ? (
             <>
               {(["A", "B", "C", "D"] as Choice[]).map((c) => {
                 const key = `choice_${c.toLowerCase()}` as keyof QuestionInput;
