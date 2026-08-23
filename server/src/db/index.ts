@@ -24,6 +24,17 @@ if (process.env.DB_RESET === "true") {
 const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
 db.exec(schema);
 
+// 既存DBに新しいカラムを追加する軽量マイグレーション(DB_RESETのような全消去を避けるため)。
+// CREATE TABLE IF NOT EXISTSは既存テーブルの構造を変えないので、ここで補う。
+function ensureColumn(table: string, column: string, ddl: string) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+    console.log(`migrated: added column ${table}.${column}`);
+  }
+}
+ensureColumn("questions", "points", "points INTEGER NOT NULL DEFAULT 1");
+
 export function runInTransaction<T>(fn: () => T): T {
   db.exec("BEGIN");
   try {

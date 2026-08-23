@@ -64,7 +64,7 @@ export default function ScreenPage() {
       {isChoice && (state.phase === "question" || state.phase === "reveal") && state.question && (
         <div className="screen-question-view">
           <p className="screen-progress">
-            第{state.questionNumber}問 / {state.totalQuestions}問
+            第{state.questionNumber}問 / {state.totalQuestions}問（{state.question?.points ?? 1}点）
           </p>
           <h2 className="screen-question-text">{state.question.question_text}</h2>
           {state.question.image_path && (
@@ -99,7 +99,7 @@ export default function ScreenPage() {
       {!isChoice && state.phase === "question" && state.question && (
         <div className="screen-question-view">
           <p className="screen-progress">
-            第{state.questionNumber}問 / {state.totalQuestions}問
+            第{state.questionNumber}問 / {state.totalQuestions}問（{state.question?.points ?? 1}点）
           </p>
           <h2 className="screen-question-text">{state.question.question_text}</h2>
           {state.question.image_path && (
@@ -112,7 +112,7 @@ export default function ScreenPage() {
       {!isChoice && state.phase === "reveal" && state.question && (
         <div className="screen-question-view">
           <p className="screen-progress">
-            第{state.questionNumber}問 / {state.totalQuestions}問
+            第{state.questionNumber}問 / {state.totalQuestions}問（{state.question?.points ?? 1}点）
           </p>
           <h2 className="screen-question-text">{state.question.question_text}</h2>
           {state.question.image_path && (

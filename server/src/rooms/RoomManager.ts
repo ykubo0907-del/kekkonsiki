@@ -20,6 +20,7 @@ export interface QuestionSnapshot {
   order_index: number;
   question_type: QuestionType;
   question_text: string;
+  points: number;
   image_path: string | null;
   // question_type === "choice" のときのみ使う
   choice_a?: string | null;
@@ -254,16 +255,17 @@ class RoomManager {
     return counts;
   }
 
-  // 4択・自由記述が混在していても、問題ごとに正誤判定して合計するのでそのまま合算ランキングになる
+  // 4択・自由記述が混在していても、問題ごとに配点で正誤判定して合計するのでそのまま合算ランキングになる
   computeRanking(room: RoomState): RankingEntry[] {
     const scores = new Map<string, number>();
     for (const participant of room.participants.values()) {
       scores.set(participant.id, 0);
     }
     for (let qIndex = 0; qIndex < room.questions.length; qIndex++) {
+      const points = room.questions[qIndex].points;
       for (const participantId of room.participants.keys()) {
         if (this.isCorrectAnswer(room, qIndex, participantId)) {
-          scores.set(participantId, (scores.get(participantId) ?? 0) + 1);
+          scores.set(participantId, (scores.get(participantId) ?? 0) + points);
         }
       }
     }
@@ -346,6 +348,7 @@ class RoomManager {
         ? {
             question_type: question.question_type,
             question_text: question.question_text,
+            points: question.points,
             choice_a: question.choice_a,
             choice_b: question.choice_b,
             choice_c: question.choice_c,
@@ -355,6 +358,7 @@ class RoomManager {
         : {
             question_type: question.question_type,
             question_text: question.question_text,
+            points: question.points,
             image_path: question.image_path,
           };
 

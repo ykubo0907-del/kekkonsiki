@@ -142,7 +142,7 @@ export default function PreviewPage() {
             {isChoice && (phase === "question" || phase === "reveal") && question && (
               <div>
                 <p className="muted">
-                  第{index + 1}問 / {questions.length}問
+                  第{index + 1}問 / {questions.length}問（{question?.points ?? 1}点）
                 </p>
                 <p>{question.question_text}</p>
                 {question.image_path && (
@@ -181,7 +181,7 @@ export default function PreviewPage() {
             {!isChoice && phase === "question" && question && (
               <div>
                 <p className="muted">
-                  第{index + 1}問 / {questions.length}問
+                  第{index + 1}問 / {questions.length}問（{question?.points ?? 1}点）
                 </p>
                 <p>{question.question_text}</p>
                 {question.image_path && (
@@ -201,7 +201,7 @@ export default function PreviewPage() {
             {!isChoice && phase === "reveal" && question && (
               <div>
                 <p className="muted">
-                  第{index + 1}問 / {questions.length}問
+                  第{index + 1}問 / {questions.length}問（{question?.points ?? 1}点）
                 </p>
                 <p>{question.question_text}</p>
                 <p>
@@ -242,7 +242,7 @@ export default function PreviewPage() {
             {isChoice && (phase === "question" || phase === "reveal") && question && (
               <div className="screen-question-view">
                 <p className="screen-progress">
-                  第{index + 1}問 / {questions.length}問
+                  第{index + 1}問 / {questions.length}問（{question?.points ?? 1}点）
                 </p>
                 <h2 className="screen-question-text">{question.question_text}</h2>
                 {question.image_path && (
@@ -272,7 +272,7 @@ export default function PreviewPage() {
             {!isChoice && phase === "question" && question && (
               <div className="screen-question-view">
                 <p className="screen-progress">
-                  第{index + 1}問 / {questions.length}問
+                  第{index + 1}問 / {questions.length}問（{question?.points ?? 1}点）
                 </p>
                 <h2 className="screen-question-text">{question.question_text}</h2>
                 {question.image_path && (
@@ -284,7 +284,7 @@ export default function PreviewPage() {
             {!isChoice && phase === "reveal" && question && (
               <div className="screen-question-view">
                 <p className="screen-progress">
-                  第{index + 1}問 / {questions.length}問
+                  第{index + 1}問 / {questions.length}問（{question?.points ?? 1}点）
                 </p>
                 <h2 className="screen-question-text">{question.question_text}</h2>
                 <p className="screen-reveal-text">

@@ -32,6 +32,7 @@ interface QuestionRow {
   choice_d: string | null;
   correct_choice: "A" | "B" | "C" | "D" | null;
   correct_answer_text: string | null;
+  points: number;
   image_path: string | null;
 }
 
@@ -120,8 +121,8 @@ quizzesRouter.post("/:id/duplicate", (req, res) => {
     const newId = info.lastInsertRowid as number;
     const insertQuestion = db.prepare(
       `INSERT INTO questions
-        (quiz_id, order_index, question_type, question_text, choice_a, choice_b, choice_c, choice_d, correct_choice, correct_answer_text, image_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (quiz_id, order_index, question_type, question_text, choice_a, choice_b, choice_c, choice_d, correct_choice, correct_answer_text, points, image_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const q of questions) {
       insertQuestion.run(
@@ -135,6 +136,7 @@ quizzesRouter.post("/:id/duplicate", (req, res) => {
         q.choice_d,
         q.correct_choice,
         q.correct_answer_text,
+        q.points,
         q.image_path,
       );
     }
@@ -155,12 +157,14 @@ const choiceQuestionSchema = z.object({
   choice_c: z.string().min(1),
   choice_d: z.string().min(1),
   correct_choice: z.enum(["A", "B", "C", "D"]),
+  points: z.number().int().min(1).max(100),
 });
 const freetextQuestionSchema = z.object({
   order_index: z.number().int().min(0).max(9),
   question_type: z.literal("freetext"),
   question_text: z.string().min(1),
   correct_answer_text: z.string().min(1),
+  points: z.number().int().min(1).max(100),
 });
 const questionSchema = z.discriminatedUnion("question_type", [choiceQuestionSchema, freetextQuestionSchema]);
 const questionsPayloadSchema = z.object({ questions: z.array(questionSchema).max(10) });
@@ -189,8 +193,8 @@ quizzesRouter.put("/:id/questions", (req, res) => {
     db.prepare("DELETE FROM questions WHERE quiz_id = ?").run(quiz.id);
     const insert = db.prepare(
       `INSERT INTO questions
-        (quiz_id, order_index, question_type, question_text, choice_a, choice_b, choice_c, choice_d, correct_choice, correct_answer_text, image_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (quiz_id, order_index, question_type, question_text, choice_a, choice_b, choice_c, choice_d, correct_choice, correct_answer_text, points, image_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const q of parsed.data.questions) {
       const isChoice = q.question_type === "choice";
@@ -205,6 +209,7 @@ quizzesRouter.put("/:id/questions", (req, res) => {
         isChoice ? q.choice_d : null,
         isChoice ? q.correct_choice : null,
         isChoice ? null : q.correct_answer_text,
+        q.points,
         existingImages.get(q.order_index) ?? null,
       );
     }

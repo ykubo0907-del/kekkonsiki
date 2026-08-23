@@ -133,7 +133,9 @@ export default function HostRoomPage() {
 
         {state.question && (
           <div>
-            <p>{state.question.question_text}</p>
+            <p>
+              {state.question.question_text} <span className="muted">({state.question.points}点)</span>
+            </p>
             <p className="muted">回答済み: {state.answeredCount ?? 0}人</p>
             {state.question.question_type === "choice" ? (
               <>

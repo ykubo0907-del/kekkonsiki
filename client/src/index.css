@@ -416,3 +416,75 @@ button.danger {
   font-size: 0.9rem;
   z-index: 1000;
 }
+
+/* 会場スクリーンは基本的に大画面のプロジェクター投影を想定しているが、
+   プレビューでの埋め込み表示やスマホでの確認時にも文字が折り返しすぎて
+   縦に間延びしないよう、幅が狭い場合はフォントサイズを縮小する。 */
+@media (max-width: 700px) {
+  .screen-page {
+    padding: 20px;
+  }
+
+  .screen-title {
+    font-size: 2.2rem;
+  }
+
+  .screen-participant-count {
+    font-size: 1.3rem;
+  }
+
+  .screen-join-hint {
+    font-size: 1rem;
+  }
+
+  .screen-roomcode {
+    font-size: 2rem;
+  }
+
+  .screen-url {
+    font-size: 0.9rem;
+  }
+
+  .screen-progress {
+    font-size: 1.1rem;
+  }
+
+  .screen-question-text {
+    font-size: 1.6rem;
+    margin-bottom: 16px;
+  }
+
+  .screen-choice-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .screen-choice-card {
+    padding: 14px 16px;
+  }
+
+  .screen-choice-label {
+    font-size: 1.3rem;
+  }
+
+  .screen-choice-count {
+    font-size: 1.2rem;
+  }
+
+  .screen-answer-list {
+    grid-template-columns: 1fr;
+  }
+
+  .screen-answered-count,
+  .screen-reveal-text {
+    font-size: 1.1rem;
+  }
+
+  .screen-rank-first {
+    font-size: 1.8rem;
+  }
+
+  .screen-rank-label {
+    font-size: 1.1rem;
+  }
+}

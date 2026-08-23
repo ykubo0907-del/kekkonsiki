@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS questions (
   choice_d TEXT,
   correct_choice TEXT CHECK (correct_choice IN ('A', 'B', 'C', 'D')),
   correct_answer_text TEXT,
+  points INTEGER NOT NULL DEFAULT 1,
   image_path TEXT,
   UNIQUE(quiz_id, order_index)
 );

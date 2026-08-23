@@ -145,7 +145,7 @@ export default function JoinPage() {
       {isChoice && (state.phase === "question" || state.phase === "reveal") && state.question && (
         <div className="card">
           <p className="muted">
-            第{state.questionNumber}問 / {state.totalQuestions}問
+            第{state.questionNumber}問 / {state.totalQuestions}問（{state.question?.points ?? 1}点）
           </p>
           <p>{state.question.question_text}</p>
           {state.question.image_path && (
@@ -187,7 +187,7 @@ export default function JoinPage() {
       {!isChoice && state.phase === "question" && state.question && (
         <div className="card">
           <p className="muted">
-            第{state.questionNumber}問 / {state.totalQuestions}問
+            第{state.questionNumber}問 / {state.totalQuestions}問（{state.question?.points ?? 1}点）
           </p>
           <p>{state.question.question_text}</p>
           {state.question.image_path && (
@@ -218,7 +218,7 @@ export default function JoinPage() {
       {!isChoice && state.phase === "reveal" && state.question && (
         <div className="card">
           <p className="muted">
-            第{state.questionNumber}問 / {state.totalQuestions}問
+            第{state.questionNumber}問 / {state.totalQuestions}問（{state.question?.points ?? 1}点）
           </p>
           <p>{state.question.question_text}</p>
           {state.question.image_path && (

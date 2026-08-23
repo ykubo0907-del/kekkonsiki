@@ -20,6 +20,7 @@ export interface QuestionRow {
   choice_d: string | null;
   correct_choice: Choice | null;
   correct_answer_text: string | null;
+  points: number;
   image_path: string | null;
 }
 
@@ -42,6 +43,7 @@ export interface QuestionInput {
   choice_d?: string;
   correct_choice?: Choice;
   correct_answer_text?: string;
+  points: number;
 }
 
 export type Phase = "waiting" | "question" | "reveal" | "finished";
@@ -49,6 +51,7 @@ export type Phase = "waiting" | "question" | "reveal" | "finished";
 export interface RoomQuestionPublic {
   question_type: QuestionType;
   question_text: string;
+  points: number;
   image_path: string | null;
   choice_a?: string;
   choice_b?: string;

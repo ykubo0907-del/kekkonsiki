@@ -4,7 +4,7 @@ import { api, ApiError } from "../lib/api";
 import { resizeImageFile } from "../lib/imageResize";
 import type { Choice, QuestionInput, QuestionType } from "../lib/types";
 
-function emptyQuestion(orderIndex: number, type: QuestionType): QuestionInput {
+function emptyQuestion(orderIndex: number, type: QuestionType, points = 1): QuestionInput {
   if (type === "choice") {
     return {
       order_index: orderIndex,
@@ -15,6 +15,7 @@ function emptyQuestion(orderIndex: number, type: QuestionType): QuestionInput {
       choice_c: "",
       choice_d: "",
       correct_choice: "A",
+      points,
     };
   }
   return {
@@ -22,6 +23,7 @@ function emptyQuestion(orderIndex: number, type: QuestionType): QuestionInput {
     question_type: "freetext",
     question_text: "",
     correct_answer_text: "",
+    points,
   };
 }
 
@@ -59,6 +61,7 @@ export default function QuizEditPage() {
         choice_d: found.choice_d ?? undefined,
         correct_choice: found.correct_choice ?? undefined,
         correct_answer_text: found.correct_answer_text ?? undefined,
+        points: found.points,
       };
     });
     setQuestions(loaded);
@@ -78,7 +81,9 @@ export default function QuizEditPage() {
 
   function handleQuestionTypeChange(index: number, type: QuestionType) {
     setQuestions((prev) =>
-      prev.map((q, i) => (i === index ? { ...emptyQuestion(q.order_index, type), question_text: q.question_text } : q)),
+      prev.map((q, i) =>
+        i === index ? { ...emptyQuestion(q.order_index, type, q.points), question_text: q.question_text } : q,
+      ),
     );
   }
 
@@ -189,6 +194,18 @@ export default function QuizEditPage() {
                 自由記述
               </button>
             </div>
+          </div>
+          <div className="field">
+            <label>配点</label>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={q.points}
+              onChange={(e) => updateQuestion(i, { points: Math.max(1, Number(e.target.value) || 1) })}
+              style={{ width: 100 }}
+            />
+            <p className="muted">簡単な問題は1点、難しい問題は3点など自由に設定できます</p>
           </div>
           <div className="field">
             <label>問題文</label>
