@@ -27,8 +27,8 @@ roomsRouter.post("/", requireAdmin, (req, res) => {
   const questions = db
     .prepare("SELECT * FROM questions WHERE quiz_id = ? ORDER BY order_index")
     .all(quiz.id) as unknown as QuestionSnapshot[];
-  if (questions.length !== 10) {
-    return res.status(400).json({ error: "クイズは10問揃ってから開催してください" });
+  if (questions.length === 0) {
+    return res.status(400).json({ error: "問題が1問もありません。編集画面で問題を追加してください" });
   }
 
   const room = roomManager.createRoom({

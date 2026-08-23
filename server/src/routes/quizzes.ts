@@ -12,6 +12,9 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 export const quizzesRouter = Router();
 quizzesRouter.use(requireAdmin);
 
+// 問題数は任意(最低1問)。上限は運用上の目安として設定している。
+export const MAX_QUESTIONS = 30;
+
 interface QuizRow {
   id: number;
   admin_id: number;
@@ -146,10 +149,10 @@ quizzesRouter.post("/:id/duplicate", (req, res) => {
   res.status(201).json({ id: newQuizId });
 });
 
-// 問題の一括保存(常に0〜9のorder_indexで全件置き換え)。
+// 問題の一括保存(常に0〜N-1のorder_indexで全件置き換え)。問題数は任意(1〜MAX_QUESTIONS)。
 // 問題ごとにquestion_typeを持ち、4択と自由記述を混在できる。
 const choiceQuestionSchema = z.object({
-  order_index: z.number().int().min(0).max(9),
+  order_index: z.number().int().min(0).max(MAX_QUESTIONS - 1),
   question_type: z.literal("choice"),
   question_text: z.string().min(1),
   choice_a: z.string().min(1),
@@ -160,14 +163,14 @@ const choiceQuestionSchema = z.object({
   points: z.number().int().min(1).max(100),
 });
 const freetextQuestionSchema = z.object({
-  order_index: z.number().int().min(0).max(9),
+  order_index: z.number().int().min(0).max(MAX_QUESTIONS - 1),
   question_type: z.literal("freetext"),
   question_text: z.string().min(1),
   correct_answer_text: z.string().min(1),
   points: z.number().int().min(1).max(100),
 });
 const questionSchema = z.discriminatedUnion("question_type", [choiceQuestionSchema, freetextQuestionSchema]);
-const questionsPayloadSchema = z.object({ questions: z.array(questionSchema).max(10) });
+const questionsPayloadSchema = z.object({ questions: z.array(questionSchema).max(MAX_QUESTIONS) });
 
 quizzesRouter.put("/:id/questions", (req, res) => {
   const quiz = loadOwnedQuiz(Number(req.params.id), req.admin!.adminId);
@@ -227,7 +230,7 @@ const imageUploadSchema = z.object({ dataUrl: z.string() });
 
 quizzesRouter.put("/:id/questions/:orderIndex/image", (req, res) => {
   const orderIndex = Number(req.params.orderIndex);
-  if (!Number.isInteger(orderIndex) || orderIndex < 0 || orderIndex > 9) {
+  if (!Number.isInteger(orderIndex) || orderIndex < 0 || orderIndex >= MAX_QUESTIONS) {
     return res.status(400).json({ error: "問題番号が不正です" });
   }
   const quiz = loadOwnedQuiz(Number(req.params.id), req.admin!.adminId);
@@ -268,7 +271,7 @@ quizzesRouter.put("/:id/questions/:orderIndex/image", (req, res) => {
 // 問題画像の削除
 quizzesRouter.delete("/:id/questions/:orderIndex/image", (req, res) => {
   const orderIndex = Number(req.params.orderIndex);
-  if (!Number.isInteger(orderIndex) || orderIndex < 0 || orderIndex > 9) {
+  if (!Number.isInteger(orderIndex) || orderIndex < 0 || orderIndex >= MAX_QUESTIONS) {
     return res.status(400).json({ error: "問題番号が不正です" });
   }
   const quiz = loadOwnedQuiz(Number(req.params.id), req.admin!.adminId);

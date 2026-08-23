@@ -4,6 +4,8 @@ import { api, ApiError } from "../lib/api";
 import { resizeImageFile } from "../lib/imageResize";
 import type { Choice, QuestionInput, QuestionType } from "../lib/types";
 
+const MAX_QUESTIONS = 30;
+
 function emptyQuestion(orderIndex: number, type: QuestionType, points = 1): QuestionInput {
   if (type === "choice") {
     return {
@@ -33,12 +35,10 @@ export default function QuizEditPage() {
   const navigate = useNavigate();
 
   const [title, setTitle] = useState("");
-  const [questions, setQuestions] = useState<QuestionInput[]>(
-    Array.from({ length: 10 }, (_, i) => emptyQuestion(i, "choice")),
-  );
+  const [questions, setQuestions] = useState<QuestionInput[]>([]);
   // order_index -> 保存済みか(画像はDBの問題行にひもづくため、未保存の問題には添付できない)
   const [savedIndexes, setSavedIndexes] = useState<Set<number>>(new Set());
-  const [images, setImages] = useState<(string | null)[]>(Array(10).fill(null));
+  const [images, setImages] = useState<(string | null)[]>([]);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,25 +48,25 @@ export default function QuizEditPage() {
   const loadQuiz = useCallback(async () => {
     const quiz = await api.getQuiz(quizId);
     setTitle(quiz.title);
-    const loaded: QuestionInput[] = Array.from({ length: 10 }, (_, i) => {
-      const found = quiz.questions.find((q) => q.order_index === i);
-      if (!found) return emptyQuestion(i, "choice");
-      return {
-        order_index: found.order_index,
-        question_type: found.question_type,
-        question_text: found.question_text,
-        choice_a: found.choice_a ?? undefined,
-        choice_b: found.choice_b ?? undefined,
-        choice_c: found.choice_c ?? undefined,
-        choice_d: found.choice_d ?? undefined,
-        correct_choice: found.correct_choice ?? undefined,
-        correct_answer_text: found.correct_answer_text ?? undefined,
-        points: found.points,
-      };
-    });
+    const sorted = [...quiz.questions].sort((a, b) => a.order_index - b.order_index);
+    const loaded: QuestionInput[] =
+      sorted.length > 0
+        ? sorted.map((found, i) => ({
+            order_index: i,
+            question_type: found.question_type,
+            question_text: found.question_text,
+            choice_a: found.choice_a ?? undefined,
+            choice_b: found.choice_b ?? undefined,
+            choice_c: found.choice_c ?? undefined,
+            choice_d: found.choice_d ?? undefined,
+            correct_choice: found.correct_choice ?? undefined,
+            correct_answer_text: found.correct_answer_text ?? undefined,
+            points: found.points,
+          }))
+        : [emptyQuestion(0, "choice")];
     setQuestions(loaded);
-    setImages(Array.from({ length: 10 }, (_, i) => quiz.questions.find((q) => q.order_index === i)?.image_path ?? null));
-    setSavedIndexes(new Set(quiz.questions.map((q) => q.order_index)));
+    setImages(sorted.length > 0 ? sorted.map((q) => q.image_path) : [null]);
+    setSavedIndexes(new Set(sorted.map((_, i) => i)));
   }, [quizId]);
 
   useEffect(() => {
@@ -85,6 +85,19 @@ export default function QuizEditPage() {
         i === index ? { ...emptyQuestion(q.order_index, type, q.points), question_text: q.question_text } : q,
       ),
     );
+  }
+
+  function handleAddQuestion() {
+    setQuestions((prev) => [...prev, emptyQuestion(prev.length, "choice")]);
+    setImages((prev) => [...prev, null]);
+  }
+
+  function handleRemoveQuestion(index: number) {
+    if (!confirm(`第${index + 1}問を削除しますか？`)) return;
+    setQuestions((prev) => prev.filter((_, i) => i !== index).map((q, i) => ({ ...q, order_index: i })));
+    setImages((prev) => prev.filter((_, i) => i !== index));
+    // 削除後は問題番号がずれるため、保存し直すまで画像添付を一旦不可にする(誤った問題に画像が紐付くのを防ぐ)
+    setSavedIndexes(new Set());
   }
 
   const allFilled = questions.every((q) =>
@@ -175,7 +188,12 @@ export default function QuizEditPage() {
 
       {questions.map((q, i) => (
         <div className="card" key={i}>
-          <strong>第{i + 1}問</strong>
+          <div className="top-bar">
+            <strong>第{i + 1}問</strong>
+            <button type="button" className="danger" onClick={() => handleRemoveQuestion(i)}>
+              この問題を削除
+            </button>
+          </div>
           <div className="field">
             <label>回答形式</label>
             <div className="btn-row">
@@ -295,8 +313,17 @@ export default function QuizEditPage() {
         </div>
       ))}
 
+      <div className="card">
+        <button type="button" onClick={handleAddQuestion} disabled={questions.length >= MAX_QUESTIONS}>
+          + 問題を追加
+        </button>
+        <p className="muted">
+          現在{questions.length}問(最大{MAX_QUESTIONS}問まで)
+        </p>
+      </div>
+
       <button onClick={handleSaveQuestions} disabled={!allFilled || saving}>
-        10問すべて保存
+        {questions.length}問すべて保存
       </button>
       {!allFilled && <p className="muted">全ての問題文・正解を入力すると保存できます</p>}
     </div>

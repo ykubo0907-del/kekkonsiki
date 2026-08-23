@@ -110,7 +110,7 @@ export default function PreviewPage() {
           </button>
         </div>
         <div className="btn-row" style={{ marginTop: 12 }}>
-          {(phase === "waiting" || phase === "reveal") && questions.length === 10 && (
+          {(phase === "waiting" || phase === "reveal") && questions.length > 0 && (
             <button onClick={handleNext}>
               {phase === "reveal" && index >= questions.length - 1 ? "結果を見る" : "次の問題へ"}
             </button>
@@ -124,8 +124,8 @@ export default function PreviewPage() {
             </button>
           )}
         </div>
-        {questions.length !== 10 && (
-          <p className="error-text">10問揃っていないため、プレビューは待機画面のみ表示されます</p>
+        {questions.length === 0 && (
+          <p className="error-text">問題が1問もないため、プレビューは待機画面のみ表示されます</p>
         )}
       </div>
 

@@ -47,8 +47,8 @@ export default function QuizListPage() {
   }
 
   async function handleHost(quiz: QuizSummary) {
-    if (quiz.question_count !== 10) {
-      setError("10問揃っていないクイズは開催できません。編集画面で問題を追加してください");
+    if (quiz.question_count === 0) {
+      setError("問題が1問もありません。編集画面で問題を追加してください");
       return;
     }
     setError(null);
@@ -97,7 +97,7 @@ export default function QuizListPage() {
           <div className="list-item" key={q.id}>
             <div>
               <div>{q.title}</div>
-              <div className="muted">問題数: {q.question_count} / 10</div>
+              <div className="muted">問題数: {q.question_count}問</div>
             </div>
             <div className="btn-row">
               <button className="secondary" onClick={() => navigate(`/admin/quizzes/${q.id}`)}>
