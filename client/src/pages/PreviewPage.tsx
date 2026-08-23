@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import QRCodeImage from "../components/QRCodeImage";
 import { api, ApiError } from "../lib/api";
+import { normalizeAnswer } from "../lib/normalizeAnswer";
 import type { Choice, QuestionRow, QuizDetail } from "../lib/types";
 
 type PreviewPhase = "waiting" | "question" | "reveal" | "finished";
@@ -11,6 +12,8 @@ const MOCK_RANKING = [
   { rank: 2, nickname: "ゲスト2(例)", score: 7 },
   { rank: 3, nickname: "ゲスト3(例)", score: 7 },
 ];
+
+const MOCK_OTHER_ANSWERS = ["ゲストA(例)", "ゲストB(例)"];
 
 // 本番のRoomManagerには一切触れず、クライアント側だけで画面遷移を模擬する。
 // 本番開催の状態とは完全に独立しているため、実際の参加者やルームに影響しない。
@@ -27,6 +30,7 @@ export default function PreviewPage() {
   const [phase, setPhase] = useState<PreviewPhase>("waiting");
   const [index, setIndex] = useState(0);
   const [simulatedChoice, setSimulatedChoice] = useState<Choice | null>(null);
+  const [simulatedAnswer, setSimulatedAnswer] = useState("");
 
   useEffect(() => {
     api
@@ -48,20 +52,26 @@ export default function PreviewPage() {
     );
   }
 
+  const isChoice = quiz.question_type === "choice";
   const questions = [...quiz.questions].sort((a, b) => a.order_index - b.order_index);
   const question: QuestionRow | undefined = questions[index];
   const joinUrl = `${window.location.origin}/play/PREVIEW`;
+  const isMatch = question
+    ? normalizeAnswer(simulatedAnswer) === normalizeAnswer(question.correct_answer_text ?? "")
+    : false;
 
   function reset() {
     setPhase("waiting");
     setIndex(0);
     setSimulatedChoice(null);
+    setSimulatedAnswer("");
   }
 
   function handleNext() {
     if (phase === "waiting") {
       setPhase("question");
       setSimulatedChoice(null);
+      setSimulatedAnswer("");
     } else if (phase === "reveal") {
       if (index >= questions.length - 1) {
         setPhase("finished");
@@ -69,6 +79,7 @@ export default function PreviewPage() {
         setIndex((i) => i + 1);
         setPhase("question");
         setSimulatedChoice(null);
+        setSimulatedAnswer("");
       }
     }
   }
@@ -104,7 +115,9 @@ export default function PreviewPage() {
               {phase === "reveal" && index >= questions.length - 1 ? "結果を見る" : "次の問題へ"}
             </button>
           )}
-          {phase === "question" && <button onClick={handleReveal}>正解発表</button>}
+          {phase === "question" && (
+            <button onClick={handleReveal}>{isChoice ? "正解発表" : "みんなの回答を表示"}</button>
+          )}
           {phase !== "waiting" && (
             <button className="secondary" onClick={reset}>
               最初から
@@ -126,7 +139,7 @@ export default function PreviewPage() {
                 <p className="muted">現在の参加者数: 0人(プレビュー)</p>
               </div>
             )}
-            {(phase === "question" || phase === "reveal") && question && (
+            {isChoice && (phase === "question" || phase === "reveal") && question && (
               <div>
                 <p className="muted">
                   第{index + 1}問 / {questions.length}問
@@ -165,6 +178,41 @@ export default function PreviewPage() {
                 )}
               </div>
             )}
+            {!isChoice && phase === "question" && question && (
+              <div>
+                <p className="muted">
+                  第{index + 1}問 / {questions.length}問
+                </p>
+                <p>{question.question_text}</p>
+                {question.image_path && (
+                  <img className="question-image" src={question.image_path} alt="問題の画像" />
+                )}
+                <div className="field">
+                  <input
+                    type="text"
+                    value={simulatedAnswer}
+                    onChange={(e) => setSimulatedAnswer(e.target.value)}
+                    placeholder="回答を入力(プレビュー用)"
+                  />
+                </div>
+                <p className="muted">(実際に入力すると回答時の見え方を確認できます)</p>
+              </div>
+            )}
+            {!isChoice && phase === "reveal" && question && (
+              <div>
+                <p className="muted">
+                  第{index + 1}問 / {questions.length}問
+                </p>
+                <p>{question.question_text}</p>
+                <p>
+                  正解: <strong>{question.correct_answer_text}</strong>
+                </p>
+                <p>
+                  あなたの回答: 「{simulatedAnswer || "(未回答)"}」
+                  {isMatch ? " 正解です🎉" : ""}
+                </p>
+              </div>
+            )}
             {phase === "finished" && (
               <div>
                 <h3>最終ランキング(例)</h3>
@@ -191,7 +239,7 @@ export default function PreviewPage() {
                 <p className="screen-url">(プレビュー用のダミーURLです)</p>
               </div>
             )}
-            {(phase === "question" || phase === "reveal") && question && (
+            {isChoice && (phase === "question" || phase === "reveal") && question && (
               <div className="screen-question-view">
                 <p className="screen-progress">
                   第{index + 1}問 / {questions.length}問
@@ -219,6 +267,43 @@ export default function PreviewPage() {
                     正解は <strong>{question.correct_choice}</strong>！
                   </p>
                 )}
+              </div>
+            )}
+            {!isChoice && phase === "question" && question && (
+              <div className="screen-question-view">
+                <p className="screen-progress">
+                  第{index + 1}問 / {questions.length}問
+                </p>
+                <h2 className="screen-question-text">{question.question_text}</h2>
+                {question.image_path && (
+                  <img className="screen-question-image" src={question.image_path} alt="問題の画像" />
+                )}
+                <p className="screen-answered-count">回答済み: {simulatedAnswer ? 1 : 0}人(プレビュー)</p>
+              </div>
+            )}
+            {!isChoice && phase === "reveal" && question && (
+              <div className="screen-question-view">
+                <p className="screen-progress">
+                  第{index + 1}問 / {questions.length}問
+                </p>
+                <h2 className="screen-question-text">{question.question_text}</h2>
+                <p className="screen-reveal-text">
+                  正解: <strong>{question.correct_answer_text}</strong>
+                </p>
+                <div className="screen-answer-list">
+                  {MOCK_OTHER_ANSWERS.map((name) => (
+                    <div key={name} className="screen-answer-card">
+                      <span className="screen-answer-nickname">{name}</span>
+                      <span className="screen-answer-text">(例)</span>
+                    </div>
+                  ))}
+                  {simulatedAnswer && (
+                    <div className={`screen-answer-card${isMatch ? " correct" : ""}`}>
+                      <span className="screen-answer-nickname">あなた</span>
+                      <span className="screen-answer-text">{simulatedAnswer}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             {phase === "finished" && (

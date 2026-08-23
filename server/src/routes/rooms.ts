@@ -10,6 +10,7 @@ interface QuizRow {
   id: number;
   admin_id: number;
   title: string;
+  question_type: "choice" | "freetext";
 }
 
 // クイズを開催してルームを作成(管理者のみ)
@@ -35,6 +36,7 @@ roomsRouter.post("/", requireAdmin, (req, res) => {
     adminId: req.admin!.adminId,
     quizId: quiz.id,
     title: quiz.title,
+    questionType: quiz.question_type,
     questions,
   });
   res.status(201).json({ roomCode: room.roomCode });
@@ -60,17 +62,17 @@ roomsRouter.post("/:code/join", (req, res) => {
   res.status(201).json({ participantId: result.participantId });
 });
 
-// 回答(認証不要、participantIdで本人確認)
+// 回答(認証不要、participantIdで本人確認)。4択は"A"〜"D"、自由記述は入力テキストをそのまま送る。
 const answerSchema = z.object({
   participantId: z.string().min(1),
-  choice: z.enum(["A", "B", "C", "D"]),
+  answerText: z.string().min(1).max(50),
 });
 
 roomsRouter.post("/:code/answer", (req, res) => {
   const parsed = answerSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "回答データが不正です" });
+  if (!parsed.success) return res.status(400).json({ error: "回答を入力してください" });
 
-  const result = roomManager.submitAnswer(req.params.code, parsed.data.participantId, parsed.data.choice);
+  const result = roomManager.submitAnswer(req.params.code, parsed.data.participantId, parsed.data.answerText);
   if (result.error) return res.status(400).json({ error: result.error });
   res.status(204).end();
 });
@@ -84,6 +86,13 @@ roomsRouter.post("/:code/next", requireAdmin, (req, res) => {
 
 roomsRouter.post("/:code/reveal", requireAdmin, (req, res) => {
   const result = roomManager.revealAnswer(req.params.code, req.admin!.adminId);
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.status(204).end();
+});
+
+// 正解(自由記述クイズの新郎新婦の回答)を発表し、一致した回答をハイライトする(管理者のみ)
+roomsRouter.post("/:code/reveal-correct", requireAdmin, (req, res) => {
+  const result = roomManager.revealCorrectAnswer(req.params.code, req.admin!.adminId);
   if (result.error) return res.status(400).json({ error: result.error });
   res.status(204).end();
 });

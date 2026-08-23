@@ -34,6 +34,7 @@ export default function ScreenPage() {
   const { connected } = useRoomSocket(roomCode, refresh);
 
   const joinUrl = `${window.location.origin}/play/${roomCode}`;
+  const isChoice = state?.questionType === "choice";
 
   if (error && !state) {
     return (
@@ -60,7 +61,7 @@ export default function ScreenPage() {
         </div>
       )}
 
-      {(state.phase === "question" || state.phase === "reveal") && state.question && (
+      {isChoice && (state.phase === "question" || state.phase === "reveal") && state.question && (
         <div className="screen-question-view">
           <p className="screen-progress">
             第{state.questionNumber}問 / {state.totalQuestions}問
@@ -92,6 +93,44 @@ export default function ScreenPage() {
               正解は <strong>{state.question.correct_choice}</strong>！（正解者 {state.correctCount}人）
             </p>
           )}
+        </div>
+      )}
+
+      {!isChoice && state.phase === "question" && state.question && (
+        <div className="screen-question-view">
+          <p className="screen-progress">
+            第{state.questionNumber}問 / {state.totalQuestions}問
+          </p>
+          <h2 className="screen-question-text">{state.question.question_text}</h2>
+          {state.question.image_path && (
+            <img className="screen-question-image" src={state.question.image_path} alt="問題の画像" />
+          )}
+          <p className="screen-answered-count">回答済み: {state.answeredCount ?? 0}人</p>
+        </div>
+      )}
+
+      {!isChoice && state.phase === "reveal" && state.question && (
+        <div className="screen-question-view">
+          <p className="screen-progress">
+            第{state.questionNumber}問 / {state.totalQuestions}問
+          </p>
+          <h2 className="screen-question-text">{state.question.question_text}</h2>
+          {state.question.image_path && (
+            <img className="screen-question-image" src={state.question.image_path} alt="問題の画像" />
+          )}
+          {state.correctRevealed && (
+            <p className="screen-reveal-text">
+              正解: <strong>{state.correctAnswerText}</strong>（正解者 {state.correctCount}人）
+            </p>
+          )}
+          <div className="screen-answer-list">
+            {state.answers?.map((a, i) => (
+              <div key={i} className={`screen-answer-card${a.isCorrect ? " correct" : ""}`}>
+                <span className="screen-answer-nickname">{a.nickname}</span>
+                <span className="screen-answer-text">{a.answerText ?? "(未回答)"}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

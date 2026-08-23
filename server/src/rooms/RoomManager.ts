@@ -13,17 +13,21 @@ export const roomEvents = new EventEmitter();
 roomEvents.setMaxListeners(0);
 
 export type Choice = "A" | "B" | "C" | "D";
+export type QuestionType = "choice" | "freetext";
 export type Phase = "waiting" | "question" | "reveal" | "finished";
 
 export interface QuestionSnapshot {
   order_index: number;
   question_text: string;
-  choice_a: string;
-  choice_b: string;
-  choice_c: string;
-  choice_d: string;
-  correct_choice: Choice;
   image_path: string | null;
+  // question_type === "choice" のときのみ使う
+  choice_a?: string | null;
+  choice_b?: string | null;
+  choice_c?: string | null;
+  choice_d?: string | null;
+  correct_choice?: Choice | null;
+  // question_type === "freetext" のときのみ使う
+  correct_answer_text?: string | null;
 }
 
 interface Participant {
@@ -37,14 +41,16 @@ interface RoomState {
   adminId: number;
   quizId: number;
   title: string;
+  questionType: QuestionType;
   questions: QuestionSnapshot[];
   phase: Phase;
   currentQuestionIndex: number; // -1 = 未開始
   participants: Map<string, Participant>;
-  answers: Map<number, Map<string, Choice>>; // questionIndex -> participantId -> choice
+  answers: Map<number, Map<string, string>>; // questionIndex -> participantId -> 回答("A"〜"D" または自由記述)
   createdAt: number;
   lastActivityAt: number;
   rankRevealStage: number; // 最終結果画面で、管理者操作により何段階目まで発表済みか(0=未発表)
+  correctRevealed: boolean; // 自由記述のreveal中、正解とハイライトをまだ出していないか(4択では常にtrue)
 }
 
 export interface RankingEntry {
@@ -56,6 +62,16 @@ export interface RankingEntry {
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 紛らわしい文字(0/O/1/I)を除外
 const generateRoomCode = customAlphabet(ROOM_CODE_ALPHABET, 6);
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000; // 12時間、安全網としての自動破棄
+
+// 表記ゆれ(カタカナ/ひらがな、空白、大文字小文字)を吸収してから比較するための正規化。
+// 自由記述クイズでのみ使う。「らーめん」と「ラーメン」を同じ扱いにする。
+export function normalizeAnswer(text: string): string {
+  return text
+    .trim()
+    .replace(/\s+/g, "")
+    .toLowerCase()
+    .replace(/[ァ-ヶ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60)); // カタカナ→ひらがな
+}
 
 class RoomManager {
   private rooms = new Map<string, RoomState>();
@@ -77,6 +93,7 @@ class RoomManager {
     adminId: number;
     quizId: number;
     title: string;
+    questionType: QuestionType;
     questions: QuestionSnapshot[];
   }): RoomState {
     let roomCode = generateRoomCode();
@@ -88,6 +105,7 @@ class RoomManager {
       adminId: params.adminId,
       quizId: params.quizId,
       title: params.title,
+      questionType: params.questionType,
       questions: params.questions,
       phase: "waiting",
       currentQuestionIndex: -1,
@@ -96,6 +114,7 @@ class RoomManager {
       createdAt: Date.now(),
       lastActivityAt: Date.now(),
       rankRevealStage: 0,
+      correctRevealed: false,
     };
     this.rooms.set(roomCode, room);
     return room;
@@ -133,15 +152,21 @@ class RoomManager {
     return { participantId };
   }
 
-  submitAnswer(
-    roomCode: string,
-    participantId: string,
-    choice: Choice,
-  ): { error?: string } {
+  submitAnswer(roomCode: string, participantId: string, answerText: string): { error?: string } {
     const room = this.getRoom(roomCode);
     if (!room) return { error: "ルームが見つかりません" };
     if (!room.participants.has(participantId)) return { error: "参加情報が見つかりません" };
     if (room.phase !== "question") return { error: "現在回答を受け付けていません" };
+
+    let value: string;
+    if (room.questionType === "choice") {
+      if (!["A", "B", "C", "D"].includes(answerText)) return { error: "選択肢が不正です" };
+      value = answerText;
+    } else {
+      const trimmed = answerText.trim().slice(0, 50);
+      if (!trimmed) return { error: "回答を入力してください" };
+      value = trimmed;
+    }
 
     const qIndex = room.currentQuestionIndex;
     let answersForQuestion = room.answers.get(qIndex);
@@ -152,7 +177,7 @@ class RoomManager {
     if (answersForQuestion.has(participantId)) {
       return { error: "既に回答済みです" };
     }
-    answersForQuestion.set(participantId, choice);
+    answersForQuestion.set(participantId, value);
     room.lastActivityAt = Date.now();
     roomEvents.emit("update", room.roomCode);
     return {};
@@ -183,12 +208,38 @@ class RoomManager {
     const room = this.getRoom(roomCode);
     if (!room) return { error: "ルームが見つかりません" };
     if (room.adminId !== adminId) return { error: "このルームを操作する権限がありません" };
-    if (room.phase !== "question") return { error: "今は正解発表できません" };
+    if (room.phase !== "question") return { error: "今は回答を表示できません" };
 
     room.phase = "reveal";
+    // 4択は正解を即時公開、自由記述は「みんなの回答表示」→「正解発表」の2段階にする
+    room.correctRevealed = room.questionType === "choice";
     room.lastActivityAt = Date.now();
     roomEvents.emit("update", room.roomCode);
     return {};
+  }
+
+  revealCorrectAnswer(roomCode: string, adminId: number): { error?: string } {
+    const room = this.getRoom(roomCode);
+    if (!room) return { error: "ルームが見つかりません" };
+    if (room.adminId !== adminId) return { error: "このルームを操作する権限がありません" };
+    if (room.questionType !== "freetext") return { error: "このクイズ形式では不要な操作です" };
+    if (room.phase !== "reveal") return { error: "今は正解を発表できません" };
+    if (room.correctRevealed) return { error: "既に正解を発表済みです" };
+
+    room.correctRevealed = true;
+    room.lastActivityAt = Date.now();
+    roomEvents.emit("update", room.roomCode);
+    return {};
+  }
+
+  private isCorrectAnswer(room: RoomState, qIndex: number, participantId: string): boolean {
+    const answer = room.answers.get(qIndex)?.get(participantId);
+    if (!answer) return false;
+    const question = room.questions[qIndex];
+    if (room.questionType === "choice") {
+      return answer === question.correct_choice;
+    }
+    return normalizeAnswer(answer) === normalizeAnswer(question.correct_answer_text ?? "");
   }
 
   private computeAnswerCounts(room: RoomState, qIndex: number): Record<Choice, number> {
@@ -196,7 +247,7 @@ class RoomManager {
     const answersForQuestion = room.answers.get(qIndex);
     if (answersForQuestion) {
       for (const choice of answersForQuestion.values()) {
-        counts[choice] += 1;
+        counts[choice as Choice] += 1;
       }
     }
     return counts;
@@ -208,11 +259,8 @@ class RoomManager {
       scores.set(participant.id, 0);
     }
     for (let qIndex = 0; qIndex < room.questions.length; qIndex++) {
-      const correct = room.questions[qIndex].correct_choice;
-      const answersForQuestion = room.answers.get(qIndex);
-      if (!answersForQuestion) continue;
-      for (const [participantId, choice] of answersForQuestion) {
-        if (choice === correct) {
+      for (const participantId of room.participants.keys()) {
+        if (this.isCorrectAnswer(room, qIndex, participantId)) {
           scores.set(participantId, (scores.get(participantId) ?? 0) + 1);
         }
       }
@@ -267,6 +315,7 @@ class RoomManager {
     const base = {
       roomCode: room.roomCode,
       title: room.title,
+      questionType: room.questionType,
       phase: room.phase,
       participantCount: room.participants.size,
       totalQuestions: room.questions.length,
@@ -281,39 +330,63 @@ class RoomManager {
       participantId && qIndex >= 0
         ? room.answers.get(qIndex)?.has(participantId) ?? false
         : false;
-    const myChoice =
+    const myAnswer =
       participantId && qIndex >= 0 ? room.answers.get(qIndex)?.get(participantId) ?? null : null;
 
     if (room.phase === "waiting" || !question) {
       return { ...base };
     }
 
-    const answerCounts =
-      room.phase === "question" || room.phase === "reveal"
-        ? this.computeAnswerCounts(room, qIndex)
-        : undefined;
-    const answeredCount = answerCounts
-      ? answerCounts.A + answerCounts.B + answerCounts.C + answerCounts.D
-      : undefined;
+    const answersForQuestion = room.answers.get(qIndex);
+    const answeredCount = answersForQuestion?.size ?? 0;
 
-    const questionPublic = {
-      question_text: question.question_text,
-      choice_a: question.choice_a,
-      choice_b: question.choice_b,
-      choice_c: question.choice_c,
-      choice_d: question.choice_d,
-      image_path: question.image_path,
-    };
+    const questionPublic =
+      room.questionType === "choice"
+        ? {
+            question_text: question.question_text,
+            choice_a: question.choice_a,
+            choice_b: question.choice_b,
+            choice_c: question.choice_c,
+            choice_d: question.choice_d,
+            image_path: question.image_path,
+          }
+        : {
+            question_text: question.question_text,
+            image_path: question.image_path,
+          };
 
     if (room.phase === "reveal") {
+      if (room.questionType === "choice") {
+        const answerCounts = this.computeAnswerCounts(room, qIndex);
+        return {
+          ...base,
+          question: { ...questionPublic, correct_choice: question.correct_choice },
+          answerCounts,
+          answeredCount,
+          hasAnswered,
+          myAnswer,
+          correctCount: answerCounts[question.correct_choice as Choice],
+        };
+      }
+
+      // 自由記述: 誰が何と書いたかを一覧表示する(4択とは異なり匿名にしない)
+      const answerList = [...room.participants.values()].map((p) => {
+        const answerText = answersForQuestion?.get(p.id) ?? null;
+        const isCorrect =
+          room.correctRevealed && answerText !== null && this.isCorrectAnswer(room, qIndex, p.id);
+        return { nickname: p.nickname, answerText, isCorrect };
+      });
+      const correctCount = room.correctRevealed ? answerList.filter((a) => a.isCorrect).length : undefined;
       return {
         ...base,
-        question: { ...questionPublic, correct_choice: question.correct_choice },
-        answerCounts,
+        question: questionPublic,
+        correctRevealed: room.correctRevealed,
+        correctAnswerText: room.correctRevealed ? question.correct_answer_text : undefined,
+        answers: answerList,
         answeredCount,
         hasAnswered,
-        myChoice,
-        correctCount: answerCounts ? answerCounts[question.correct_choice] : 0,
+        myAnswer,
+        correctCount,
       };
     }
 
@@ -324,13 +397,14 @@ class RoomManager {
     }
 
     // phase === "question"
+    const answerCounts = room.questionType === "choice" ? this.computeAnswerCounts(room, qIndex) : undefined;
     return {
       ...base,
       question: questionPublic,
       answerCounts,
       answeredCount,
       hasAnswered,
-      myChoice,
+      myAnswer,
     };
   }
 }

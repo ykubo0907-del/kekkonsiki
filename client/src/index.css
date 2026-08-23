@@ -117,6 +117,25 @@ button.danger {
   opacity: 0.5;
 }
 
+.answer-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+
+.answer-list li {
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: #f5f0ee;
+}
+
+.answer-list li.answer-correct {
+  background: #6fae7c;
+  color: #fff;
+  font-weight: bold;
+}
+
 .error-text {
   color: #c0555a;
   font-size: 0.9rem;
@@ -277,6 +296,43 @@ button.danger {
   font-weight: bold;
   font-size: 2.4rem;
   white-space: nowrap;
+}
+
+.screen-answer-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.screen-answer-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 1.4rem;
+}
+
+.screen-answer-card.correct {
+  background: #6fae7c;
+  border-color: #6fae7c;
+  font-weight: bold;
+}
+
+.screen-answer-nickname {
+  opacity: 0.85;
+  font-size: 1.1rem;
+  white-space: nowrap;
+}
+
+.screen-answer-text {
+  font-weight: 600;
 }
 
 .screen-answered-count,

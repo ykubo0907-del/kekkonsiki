@@ -26,6 +26,7 @@ export default function JoinPage() {
   const [state, setState] = useState<RoomState | null>(null);
   const [stateError, setStateError] = useState<string | null>(null);
   const [answering, setAnswering] = useState(false);
+  const [answerText, setAnswerText] = useState("");
 
   const refresh = useCallback(async () => {
     try {
@@ -50,6 +51,10 @@ export default function JoinPage() {
 
   const { connected } = useRoomSocket(roomCode, refresh);
 
+  useEffect(() => {
+    setAnswerText("");
+  }, [state?.questionNumber]);
+
   async function handleJoin(e: FormEvent) {
     e.preventDefault();
     if (!nickname.trim()) return;
@@ -67,17 +72,23 @@ export default function JoinPage() {
     }
   }
 
-  async function handleAnswer(choice: Choice) {
+  async function submitAnswer(value: string) {
     if (!participantId || answering) return;
     setAnswering(true);
     try {
-      await api.submitAnswer(roomCode, participantId, choice);
+      await api.submitAnswer(roomCode, participantId, value);
       await refresh();
     } catch (err) {
       setStateError(err instanceof ApiError ? err.message : "回答に失敗しました");
     } finally {
       setAnswering(false);
     }
+  }
+
+  function handleFreetextSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!answerText.trim()) return;
+    submitAnswer(answerText.trim());
   }
 
   if (stateError && !state) {
@@ -117,6 +128,7 @@ export default function JoinPage() {
   }
 
   const myNickname = localStorage.getItem(storageKey(roomCode, "nickname"));
+  const isChoice = state.questionType === "choice";
 
   return (
     <div className="page">
@@ -130,7 +142,7 @@ export default function JoinPage() {
         </div>
       )}
 
-      {(state.phase === "question" || state.phase === "reveal") && state.question && (
+      {isChoice && (state.phase === "question" || state.phase === "reveal") && state.question && (
         <div className="card">
           <p className="muted">
             第{state.questionNumber}問 / {state.totalQuestions}問
@@ -146,8 +158,8 @@ export default function JoinPage() {
               let className = "choice-btn";
               if (state.phase === "reveal") {
                 if (c === state.question!.correct_choice) className += " correct";
-                else if (c === state.myChoice) className += " incorrect";
-              } else if (c === state.myChoice) {
+                else if (c === state.myAnswer) className += " incorrect";
+              } else if (c === state.myAnswer) {
                 className += " selected";
               }
               return (
@@ -155,7 +167,7 @@ export default function JoinPage() {
                   key={c}
                   className={className}
                   disabled={state.phase === "reveal" || state.hasAnswered || answering}
-                  onClick={() => handleAnswer(c)}
+                  onClick={() => submitAnswer(c)}
                 >
                   {c}. {label}
                 </button>
@@ -166,9 +178,70 @@ export default function JoinPage() {
           {state.phase === "reveal" && (
             <p>
               正解は <strong>{state.question.correct_choice}</strong> でした！
-              {state.myChoice === state.question.correct_choice ? " 正解です🎉" : ""}
+              {state.myAnswer === state.question.correct_choice ? " 正解です🎉" : ""}
             </p>
           )}
+        </div>
+      )}
+
+      {!isChoice && state.phase === "question" && state.question && (
+        <div className="card">
+          <p className="muted">
+            第{state.questionNumber}問 / {state.totalQuestions}問
+          </p>
+          <p>{state.question.question_text}</p>
+          {state.question.image_path && (
+            <img className="question-image" src={state.question.image_path} alt="問題の画像" />
+          )}
+          {state.hasAnswered ? (
+            <p className="muted">回答「{state.myAnswer}」を送信しました。結果をお待ちください</p>
+          ) : (
+            <form onSubmit={handleFreetextSubmit}>
+              <div className="field">
+                <input
+                  type="text"
+                  value={answerText}
+                  onChange={(e) => setAnswerText(e.target.value)}
+                  maxLength={50}
+                  placeholder="回答を入力"
+                  autoFocus
+                />
+              </div>
+              <button type="submit" disabled={answering || !answerText.trim()}>
+                回答する
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {!isChoice && state.phase === "reveal" && state.question && (
+        <div className="card">
+          <p className="muted">
+            第{state.questionNumber}問 / {state.totalQuestions}問
+          </p>
+          <p>{state.question.question_text}</p>
+          {state.question.image_path && (
+            <img className="question-image" src={state.question.image_path} alt="問題の画像" />
+          )}
+          {state.correctRevealed ? (
+            <p>
+              正解: <strong>{state.correctAnswerText}</strong>
+            </p>
+          ) : (
+            <p className="muted">まもなく正解が発表されます</p>
+          )}
+          <p>
+            あなたの回答: 「{state.myAnswer ?? "(未回答)"}」
+            {state.answers?.find((a) => a.nickname === myNickname)?.isCorrect ? " 正解です🎉" : ""}
+          </p>
+          <ul className="answer-list">
+            {state.answers?.map((a, i) => (
+              <li key={i} className={a.isCorrect ? "answer-correct" : ""}>
+                {a.nickname}: {a.answerText ?? "(未回答)"}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

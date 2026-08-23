@@ -2,17 +2,24 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { resizeImageFile } from "../lib/imageResize";
-import type { Choice, QuestionInput } from "../lib/types";
+import type { Choice, QuestionInput, QuestionType } from "../lib/types";
 
-function emptyQuestion(orderIndex: number): QuestionInput {
+function emptyQuestion(orderIndex: number, type: QuestionType): QuestionInput {
+  if (type === "choice") {
+    return {
+      order_index: orderIndex,
+      question_text: "",
+      choice_a: "",
+      choice_b: "",
+      choice_c: "",
+      choice_d: "",
+      correct_choice: "A",
+    };
+  }
   return {
     order_index: orderIndex,
     question_text: "",
-    choice_a: "",
-    choice_b: "",
-    choice_c: "",
-    choice_d: "",
-    correct_choice: "A",
+    correct_answer_text: "",
   };
 }
 
@@ -22,8 +29,9 @@ export default function QuizEditPage() {
   const navigate = useNavigate();
 
   const [title, setTitle] = useState("");
+  const [questionType, setQuestionType] = useState<QuestionType>("choice");
   const [questions, setQuestions] = useState<QuestionInput[]>(
-    Array.from({ length: 10 }, (_, i) => emptyQuestion(i)),
+    Array.from({ length: 10 }, (_, i) => emptyQuestion(i, "choice")),
   );
   // order_index -> 保存済みか(画像はDBの問題行にひもづくため、未保存の問題には添付できない)
   const [savedIndexes, setSavedIndexes] = useState<Set<number>>(new Set());
@@ -37,9 +45,20 @@ export default function QuizEditPage() {
   const loadQuiz = useCallback(async () => {
     const quiz = await api.getQuiz(quizId);
     setTitle(quiz.title);
-    const loaded = Array.from({ length: 10 }, (_, i) => {
+    setQuestionType(quiz.question_type);
+    const loaded: QuestionInput[] = Array.from({ length: 10 }, (_, i) => {
       const found = quiz.questions.find((q) => q.order_index === i);
-      return found ? { ...found } : emptyQuestion(i);
+      if (!found) return emptyQuestion(i, quiz.question_type);
+      return {
+        order_index: found.order_index,
+        question_text: found.question_text,
+        choice_a: found.choice_a ?? undefined,
+        choice_b: found.choice_b ?? undefined,
+        choice_c: found.choice_c ?? undefined,
+        choice_d: found.choice_d ?? undefined,
+        correct_choice: found.correct_choice ?? undefined,
+        correct_answer_text: found.correct_answer_text ?? undefined,
+      };
     });
     setQuestions(loaded);
     setImages(Array.from({ length: 10 }, (_, i) => quiz.questions.find((q) => q.order_index === i)?.image_path ?? null));
@@ -56,15 +75,28 @@ export default function QuizEditPage() {
     setQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, ...patch } : q)));
   }
 
-  const allFilled = questions.every(
-    (q) => q.question_text.trim() && q.choice_a.trim() && q.choice_b.trim() && q.choice_c.trim() && q.choice_d.trim(),
-  );
+  function handleTypeChange(type: QuestionType) {
+    setQuestionType(type);
+    setQuestions((prev) => prev.map((q) => ({ ...emptyQuestion(q.order_index, type), question_text: q.question_text })));
+  }
 
-  async function handleSaveTitle() {
+  const allFilled =
+    questionType === "choice"
+      ? questions.every(
+          (q) =>
+            q.question_text.trim() &&
+            q.choice_a?.trim() &&
+            q.choice_b?.trim() &&
+            q.choice_c?.trim() &&
+            q.choice_d?.trim(),
+        )
+      : questions.every((q) => q.question_text.trim() && q.correct_answer_text?.trim());
+
+  async function handleSaveMeta() {
     setError(null);
     try {
-      await api.updateQuizTitle(quizId, title);
-      setMessage("タイトルを保存しました");
+      await api.updateQuiz(quizId, title, questionType);
+      setMessage("クイズ設定を保存しました");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "保存に失敗しました");
     }
@@ -130,7 +162,27 @@ export default function QuizEditPage() {
           <label htmlFor="title">クイズタイトル</label>
           <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
-        <button onClick={handleSaveTitle}>タイトルを保存</button>
+        <div className="field">
+          <label>回答形式</label>
+          <div className="btn-row">
+            <button
+              type="button"
+              className={questionType === "choice" ? "" : "secondary"}
+              onClick={() => handleTypeChange("choice")}
+            >
+              4択
+            </button>
+            <button
+              type="button"
+              className={questionType === "freetext" ? "" : "secondary"}
+              onClick={() => handleTypeChange("freetext")}
+            >
+              自由記述
+            </button>
+          </div>
+          <p className="muted">回答形式を切り替えると、下の問題入力欄がリセットされます(問題文は引き継がれます)</p>
+        </div>
+        <button onClick={handleSaveMeta}>クイズ設定を保存</button>
       </div>
 
       {error && <p className="error-text">{error}</p>}
@@ -147,34 +199,53 @@ export default function QuizEditPage() {
               onChange={(e) => updateQuestion(i, { question_text: e.target.value })}
             />
           </div>
-          {(["A", "B", "C", "D"] as Choice[]).map((c) => {
-            const key = `choice_${c.toLowerCase()}` as keyof QuestionInput;
-            return (
-              <div className="field" key={c}>
-                <label>選択肢{c}</label>
-                <input
-                  type="text"
-                  value={q[key] as string}
-                  onChange={(e) => updateQuestion(i, { [key]: e.target.value } as Partial<QuestionInput>)}
-                />
+
+          {questionType === "choice" ? (
+            <>
+              {(["A", "B", "C", "D"] as Choice[]).map((c) => {
+                const key = `choice_${c.toLowerCase()}` as keyof QuestionInput;
+                return (
+                  <div className="field" key={c}>
+                    <label>選択肢{c}</label>
+                    <input
+                      type="text"
+                      value={(q[key] as string) ?? ""}
+                      onChange={(e) => updateQuestion(i, { [key]: e.target.value } as Partial<QuestionInput>)}
+                    />
+                  </div>
+                );
+              })}
+              <div className="field">
+                <label>正解</label>
+                <div className="btn-row">
+                  {(["A", "B", "C", "D"] as Choice[]).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={q.correct_choice === c ? "" : "secondary"}
+                      onClick={() => updateQuestion(i, { correct_choice: c })}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
               </div>
-            );
-          })}
-          <div className="field">
-            <label>正解</label>
-            <div className="btn-row">
-              {(["A", "B", "C", "D"] as Choice[]).map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className={q.correct_choice === c ? "" : "secondary"}
-                  onClick={() => updateQuestion(i, { correct_choice: c })}
-                >
-                  {c}
-                </button>
-              ))}
+            </>
+          ) : (
+            <div className="field">
+              <label>正解(新郎新婦の実際の回答)</label>
+              <input
+                type="text"
+                value={q.correct_answer_text ?? ""}
+                onChange={(e) => updateQuestion(i, { correct_answer_text: e.target.value })}
+                placeholder="例: らーめん"
+              />
+              <p className="muted">
+                ひらがな・カタカナの違いは自動で吸収されます(「ラーメン」でも「らーめん」でも一致とみなされます)
+              </p>
             </div>
-          </div>
+          )}
+
           <div className="field">
             <label>問題画像(任意)</label>
             {!savedIndexes.has(i) ? (
@@ -211,7 +282,7 @@ export default function QuizEditPage() {
       <button onClick={handleSaveQuestions} disabled={!allFilled || saving}>
         10問すべて保存
       </button>
-      {!allFilled && <p className="muted">全ての問題・選択肢を入力すると保存できます</p>}
+      {!allFilled && <p className="muted">全ての問題文・正解を入力すると保存できます</p>}
     </div>
   );
 }

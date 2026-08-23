@@ -59,6 +59,18 @@ export default function HostRoomPage() {
     }
   }
 
+  async function handleRevealCorrect() {
+    setBusy(true);
+    try {
+      await api.revealCorrectAnswer(roomCode);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "操作に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleAdvanceRank() {
     setBusy(true);
     try {
@@ -123,18 +135,41 @@ export default function HostRoomPage() {
           <div>
             <p>{state.question.question_text}</p>
             <p className="muted">回答済み: {state.answeredCount ?? 0}人</p>
-            {state.answerCounts && (
-              <ul>
-                <li>A: {state.answerCounts.A}人</li>
-                <li>B: {state.answerCounts.B}人</li>
-                <li>C: {state.answerCounts.C}人</li>
-                <li>D: {state.answerCounts.D}人</li>
-              </ul>
-            )}
-            {state.phase === "reveal" && (
-              <p>
-                正解: <strong>{state.question.correct_choice}</strong>（正解者 {state.correctCount}人）
-              </p>
+            {state.questionType === "choice" ? (
+              <>
+                {state.answerCounts && (
+                  <ul>
+                    <li>A: {state.answerCounts.A}人</li>
+                    <li>B: {state.answerCounts.B}人</li>
+                    <li>C: {state.answerCounts.C}人</li>
+                    <li>D: {state.answerCounts.D}人</li>
+                  </ul>
+                )}
+                {state.phase === "reveal" && (
+                  <p>
+                    正解: <strong>{state.question.correct_choice}</strong>（正解者 {state.correctCount}人）
+                  </p>
+                )}
+              </>
+            ) : (
+              state.phase === "reveal" && (
+                <>
+                  {state.correctRevealed ? (
+                    <p>
+                      正解: <strong>{state.correctAnswerText}</strong>（正解者 {state.correctCount}人）
+                    </p>
+                  ) : (
+                    <p className="muted">「正解を発表」を押すと、新郎新婦の回答と一致した人がハイライトされます</p>
+                  )}
+                  <ul className="answer-list">
+                    {state.answers?.map((a, i) => (
+                      <li key={i} className={a.isCorrect ? "answer-correct" : ""}>
+                        {a.nickname}: {a.answerText ?? "(未回答)"}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )
             )}
           </div>
         )}
@@ -171,16 +206,24 @@ export default function HostRoomPage() {
         })()}
 
         <div className="btn-row">
-          {(state.phase === "waiting" || state.phase === "reveal") && (
+          {state.phase === "waiting" && (
             <button onClick={handleNext} disabled={busy}>
-              {state.phase === "reveal" && state.questionNumber >= state.totalQuestions
-                ? "結果を見る"
-                : "次の問題へ"}
+              次の問題へ
+            </button>
+          )}
+          {state.phase === "reveal" && (state.questionType === "choice" || state.correctRevealed) && (
+            <button onClick={handleNext} disabled={busy}>
+              {state.questionNumber >= state.totalQuestions ? "結果を見る" : "次の問題へ"}
             </button>
           )}
           {state.phase === "question" && (
             <button onClick={handleReveal} disabled={busy}>
-              正解発表
+              {state.questionType === "choice" ? "正解発表" : "みんなの回答を表示"}
+            </button>
+          )}
+          {state.phase === "reveal" && state.questionType === "freetext" && !state.correctRevealed && (
+            <button onClick={handleRevealCorrect} disabled={busy}>
+              正解を発表
             </button>
           )}
           {state.phase === "finished" && (
@@ -208,7 +251,7 @@ function phaseLabel(phase: RoomState["phase"]): string {
     case "question":
       return "回答受付中";
     case "reveal":
-      return "正解発表中";
+      return "回答表示中";
     case "finished":
       return "終了";
   }

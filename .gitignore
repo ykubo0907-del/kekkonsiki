@@ -6,4 +6,4 @@ server/data/*.db-*
 server/uploads/*
 !server/uploads/.gitkeep
 *.tsbuildinfo
-.claude/settings.local.json
+.claude/

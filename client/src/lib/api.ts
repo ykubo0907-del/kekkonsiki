@@ -1,4 +1,4 @@
-import type { QuestionInput, QuizDetail, QuizSummary, RoomState } from "./types";
+import type { QuestionInput, QuestionType, QuizDetail, QuizSummary, RoomState } from "./types";
 
 export class ApiError extends Error {
   status: number;
@@ -38,11 +38,11 @@ export const api = {
   me: () => request<{ username: string }>("/auth/me"),
 
   listQuizzes: () => request<QuizSummary[]>("/quizzes"),
-  createQuiz: (title: string) =>
-    request<{ id: number }>("/quizzes", { method: "POST", body: JSON.stringify({ title }) }),
+  createQuiz: (title: string, question_type: QuestionType) =>
+    request<{ id: number }>("/quizzes", { method: "POST", body: JSON.stringify({ title, question_type }) }),
   getQuiz: (id: number) => request<QuizDetail>(`/quizzes/${id}`),
-  updateQuizTitle: (id: number, title: string) =>
-    request<void>(`/quizzes/${id}`, { method: "PUT", body: JSON.stringify({ title }) }),
+  updateQuiz: (id: number, title: string, question_type: QuestionType) =>
+    request<void>(`/quizzes/${id}`, { method: "PUT", body: JSON.stringify({ title, question_type }) }),
   deleteQuiz: (id: number) => request<void>(`/quizzes/${id}`, { method: "DELETE" }),
   duplicateQuiz: (id: number) => request<{ id: number }>(`/quizzes/${id}/duplicate`, { method: "POST" }),
   saveQuestions: (id: number, questions: QuestionInput[]) =>
@@ -64,13 +64,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ nickname }),
     }),
-  submitAnswer: (code: string, participantId: string, choice: string) =>
+  submitAnswer: (code: string, participantId: string, answerText: string) =>
     request<void>(`/rooms/${code}/answer`, {
       method: "POST",
-      body: JSON.stringify({ participantId, choice }),
+      body: JSON.stringify({ participantId, answerText }),
     }),
   nextQuestion: (code: string) => request<void>(`/rooms/${code}/next`, { method: "POST" }),
   revealAnswer: (code: string) => request<void>(`/rooms/${code}/reveal`, { method: "POST" }),
+  revealCorrectAnswer: (code: string) => request<void>(`/rooms/${code}/reveal-correct`, { method: "POST" }),
   advanceRankReveal: (code: string) => request<void>(`/rooms/${code}/reveal-rank`, { method: "POST" }),
   closeRoom: (code: string) => request<void>(`/rooms/${code}`, { method: "DELETE" }),
 };
